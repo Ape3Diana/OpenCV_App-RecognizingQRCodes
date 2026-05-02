@@ -141,38 +141,7 @@ void testNegativeImageFast()
 	}
 }
 
-Mat image2Gray(Mat src)
-{
-	//char fname[MAX_PATH];
-	//while(openFileDlg(fname))
-	//{
-		//Mat src = imread(fname);
 
-		int height = src.rows;
-		int width = src.cols;
-
-		Mat dst = Mat(height,width,CV_8UC1);
-
-		// Accessing individual pixels in a RGB 24 bits/pixel image
-		// Inefficient way -> slow
-		for (int i=0; i<height; i++)
-		{
-			for (int j=0; j<width; j++)
-			{
-				Vec3b v3 = src.at<Vec3b>(i,j);
-				uchar b = v3[0];
-				uchar g = v3[1];
-				uchar r = v3[2];
-				dst.at<uchar>(i,j) = (r+g+b)/3;
-			}
-		}
-		
-		//imshow("input image",src);
-		imshow("Imagine grayscale",dst);
-		return dst;
-		///waitKey();
-	//}
-}
 
 void testBGR2HSV()
 {
@@ -832,79 +801,7 @@ void testColourImageConvToGreyscale()
 	}
 }
 
-Mat binarizare(Mat src)
-{
-	//char fname[MAX_PATH];
-	//while (openFileDlg(fname))
-	//{
-		//masoara timpul de procesare a imaginii
-		//double t = (double)getTickCount(); // Get the current time [s]
 
-		//Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-
-		Mat dst = Mat(height, width, CV_8UC1);
-
-		int T = 128;
-		int TNext = T;
-
-		do {
-			T= TNext;
-			long long sum1 = 0, sum2 = 0;
-			int count1 = 0, count2 = 0;
-
-			for (int i = 0; i < height; i++)
-			{
-				for (int j = 0; j < width; j++)
-				{
-					uchar val = src.at<uchar>(i, j);
-					if (val <= T) {
-						sum1 += val;
-						count1++;
-					}
-					else {
-						sum2 += val;
-						count2++;
-					}
-				}
-			}
-
-			int V1 = count1 > 0 ? sum1 / count1 : 0; ///media pixelilor <= T
-			int V2 = count2 > 0 ? sum2 / count2 : 0; //media pixelilor > T
-
-
-			///noul prag la urmatoarea iteratieT(i+1)
-			TNext = (V1 + V2) / 2;
-		} while (T != TNext); ///pragul nu se mai modifica
-
-
-		printf("Pragul optim calculat = %d\n", T);
-
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				uchar val = src.at<uchar>(i, j);
-				if (val <= T)
-					dst.at<uchar>(i, j) = 0;
-				else
-					dst.at<uchar>(i, j) = 255;
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		//t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		//printf("Time = %.3f [ms]\n", t * 1000);
-
-		//imshow("input image", src);
-		imshow("Imagine binarizata (alb+negru)", dst);
-
-		return dst;
-		//waitKey();
-	//}
-}
 
 
 int isInside(Mat img, int i, int j)
@@ -1412,15 +1309,208 @@ void projections() {
 }
 
 
+///////////////////////
+
+/// QR
+
+///////////////////////
+
+
+Mat image2Gray(Mat src)
+{
+	//char fname[MAX_PATH];
+	//while(openFileDlg(fname))
+	//{
+		//Mat src = imread(fname);
+
+	int height = src.rows;
+	int width = src.cols;
+
+	Mat dst = Mat(height, width, CV_8UC1);
+
+	// Accessing individual pixels in a RGB 24 bits/pixel image
+	// Inefficient way -> slow
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			Vec3b v3 = src.at<Vec3b>(i, j);
+			uchar b = v3[0];
+			uchar g = v3[1];
+			uchar r = v3[2];
+			//dst.at<uchar>(i,j) = (r+g+b)/3;
+			dst.at<uchar>(i, j) = (uchar)(0.299 * r + 0.587 * g + 0.114 * b);
+		}
+	}
+
+	imshow("Imagine grayscale", dst);
+	return dst;
+
+}
+
+
+
+Mat binarizare(Mat src)
+{
+	int height = src.rows;
+	int width = src.cols;
+
+	Mat dst = Mat(height, width, CV_8UC1);
+
+	int T = 128;
+	int TNext = T;
+
+	do {
+		T = TNext;
+		long long sum1 = 0, sum2 = 0;
+		int count1 = 0, count2 = 0;
+
+		for (int i = 0; i < height; i++)
+		{
+			for (int j = 0; j < width; j++)
+			{
+				uchar val = src.at<uchar>(i, j);
+				if (val <= T) {
+					sum1 += val;
+					count1++;
+				}
+				else {
+					sum2 += val;
+					count2++;
+				}
+			}
+		}
+
+		int V1 = count1 > 0 ? sum1 / count1 : 0; ///media pixelilor <= T
+		int V2 = count2 > 0 ? sum2 / count2 : 0; //media pixelilor > T
+
+
+		///noul prag la urmatoarea iteratieT(i+1)
+		TNext = (V1 + V2) / 2;
+	} while (T != TNext); ///pragul nu se mai modifica
+
+
+	printf("Pragul optim calculat = %d\n", T);
+
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			uchar val = src.at<uchar>(i, j);
+			if (val <= T)
+				dst.at<uchar>(i, j) = 0;
+			else
+				dst.at<uchar>(i, j) = 255;
+		}
+	}
+
+
+	imshow("Imagine binarizata (alb+negru)", dst);
+
+	return dst;
+	
+}
+
+
+Mat detectFinderPatternsAndColor(Mat binImg) {
+	int height = binImg.rows;
+	int width = binImg.cols;
+
+	Mat display;
+	cvtColor(binImg, display, COLOR_GRAY2BGR);
+
+	std::vector<Point> centers;
+
+	for (int i = 0; i < height; i++) {
+		std::vector<int> counter(5, 0);
+		int currentState = 0;
+		for (int j = 0; j < width; j++) {
+			uchar pixel = binImg.at<uchar>(i, j);
+			bool isBlack = (pixel == 0);
+
+			if (isBlack == (currentState % 2 == 0)) {
+				counter[currentState]++;
+			}
+			else {
+				if (currentState == 4) {
+					int totalWidth = counter[0] + counter[1] + counter[2] + counter[3] + counter[4];
+					float unit = (float)totalWidth / 7.0f;
+					float maxErr = unit * 0.5f;
+
+					if (abs(counter[0] - unit) < maxErr &&
+						abs(counter[1] - unit) < maxErr &&
+						abs(counter[2] - unit * 3) < maxErr * 3 &&
+						abs(counter[3] - unit) < maxErr &&
+						abs(counter[4] - unit) < maxErr) {
+
+						int centerX = j - counter[4] - counter[3] - counter[2] / 2;
+						int centerY = i;
+
+						std::vector<int> vCounter(5, 0);
+						int row = centerY - counter[2];
+						int vState = 0;
+
+						while (row < centerY + counter[2] && isInside(binImg, row, centerX)) {
+							uchar vPixel = binImg.at<uchar>(row, centerX);
+							bool vIsBlack = (vPixel == 0);
+							if (vIsBlack == (vState % 2 == 0)) {
+								vCounter[vState]++;
+							}
+							else {
+								if (vState == 4) break;
+								vState++;
+								vCounter[vState]++;
+							}
+							row++;
+						}
+
+						if (vState == 4) {
+							int vTotal = vCounter[0] + vCounter[1] + vCounter[2] + vCounter[3] + vCounter[4];
+							float vUnit = (float)vTotal / 7.0f;
+							if (abs(vCounter[2] - vUnit * 3) < vUnit) {
+								bool duplicate = false;
+								for (const auto& p : centers) {
+									if (norm(p - Point(centerX, centerY)) < unit * 2) duplicate = true;
+								}
+								if (!duplicate) {
+									centers.push_back(Point(centerX, centerY));
+									circle(display, Point(centerX, centerY), (int)unit * 2, Scalar(0, 0, 255), 3);
+								}
+							}
+						}
+					}
+					counter[0] = counter[2];
+					counter[1] = counter[3];
+					counter[2] = counter[4];
+					counter[3] = 1;
+					counter[4] = 0;
+					currentState = 3;
+				}
+				else {
+					currentState++;
+					counter[currentState]++;
+				}
+			}
+		}
+	}
+	if (centers.size() == 3) {
+		printf("Detectate %d puncte de control.\n", centers.size());
+	
+		imshow("DST: Puncte de Control pe Imagine Binarizata", display);
+	
+	}
+	else {
+		printf("EROARE. Nu au fost identificate puncte de control!");
+	}
+	return display;
+}
+
 
 int main() 
 {
 	cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_FATAL);
     projectPath = _wgetcwd(0, 0);
 
-	//int op;
-	//do
-	//{
 	system("cls");
 	destroyAllWindows();
 	printf("Selecteaza imaginea:\n");
@@ -1436,160 +1526,13 @@ int main()
 	printf("Step 2: Binarizare realizata! Apasa o tasta...\n");
 	Mat binImg = binarizare(greyImg);
 	waitKey();
-		
-		/*printf(" 1 - Open image\n");
-		printf(" 2 - Open BMP images from folder\n");
-		printf(" 3 - Image negative\n");
-		printf(" 4 - Image negative (fast)\n");
-		printf(" 5 - BGR->Gray\n");
-		printf(" 6 - BGR->Gray (fast, save result to disk) \n");
-		printf(" 7 - BGR->HSV\n");
-		printf(" 8 - Resize image\n");
-		printf(" 9 - Canny edge detection\n");
-		printf(" 10 - Edges in a video sequence\n");
-		printf(" 11 - Snap frame from live video\n");
-		printf(" 12 - Mouse callback demo\n");
-		printf(" 13 - Black square and negative image\n");
-		printf(" 14 - Black square, white square and negative image\n");
-		printf(" 15 - Source + 50\n");
-		printf(" 16 - Source + 150\n");
-		printf(" 17 - Source - 50\n");
-		printf(" 18 - Flip image X and Y axis\n");
-		printf(" 19 - Colour image + coloured square\n");
-		printf(" 20 - Color image + at green canal + 50\n");
-		printf(" 21 - Color image + R->0, G, B->0\n");
-		printf(" 22 - Color image + 3 dst greyscale imagines \n");
-		printf(" 23 - Color image + dst greyscale \n");
-		printf(" 24 - Color image + binarizare \n");
-		printf(" 25 - Color image + pixel is inside img \n");
-		printf(" 26 - Histogram of a grayscale image\n");
-		printf(" 27 - Normalized histogram of a grayscale image\n");
-		printf(" 28 - Binarized image with thresholds\n");
-		printf(" 29 - Binarized image with thresholds and Floyd correction\n");
-		printf(" 30 - The area of the single object in the image\n");
-		printf(" 31 - The center of the single object inthe image\n");
-		printf(" 32 - Axa de alungire\n");
-		printf(" 33 - Perimeter of the object\n");
-		printf(" 34 - Thinness ratio of object\n");
-		printf(" 35 - Aspect ratio of object\n");
-		printf(" 36 - Show proejctions of object\n");
-		printf(" 0 - Exit\n\n");
-		printf("Option: ");
 
-		scanf("%d",&op);
-		switch (op)
-		{
-			case 1:
-				testOpenImage();
-				break;
-			case 2:
-				testOpenImagesFld();
-				break;
-			case 3:
-				testNegativeImage();
-				break;
-			case 4:
-				testNegativeImageFast();
-				break;
-			case 5:
-				testColor2Gray();
-				break;
-			case 6:
-				testImageOpenAndSave();
-				break;
-			case 7:
-				testBGR2HSV();
-				break;
-			case 8:
-				testResize();
-				break;
-			case 9:
-				testCanny();
-				break;
-			case 10:
-				testVideoSequence();
-				break;
-			case 11:
-				testSnap();
-				break;
-			case 12:
-				testMouseClick();
-				break;
-			case 13:
-				testBlackSquare();
-				break;
-			case 14:
-				testBlackSquareAndWhiteSquare();
-				break;
-			case 15:
-				testSourcePlusVal50();	
-				break;
-			case 16:
-				testSourcePlusVal150();
-				break;
-			case 17:
-				testSourceMinusVal50();
-				break;
-			case 18:
-				testFlip();
-				break;
-			case 19:
-				testColourImageAndSquare();
-				break;
-			case 20:
-				testColourImageAndPlus50AtGreenCanal();
-				break;
-			case 21:
-				testColourImageAndKeepGreenCanal();
-				break;
-			case 22: 
-				testColourImageAndGreyscaleOn3Channels();
-				break;
-			case 23:
-				testColourImageConvToGreyscale();
-				break;
-			case 24:
-				testColourImageBinarizare();
-				break;
-			case 25:
-				testColourImageIsInside();
-				break;
-			case 26:
-				calcHistogram();
-				break;
-			case 27:
-				calcNormalizedHistogram();
-				break;
-			case 28:
-				histogramWithThresholds();
-				break;
-			case 29:
-				histogramWithThresholdsAndCorrection();
-				break;
-			case 30: 
-				calcAreaWrapper();
-				break;
-			case 31:
-				calcCentrulDeMasaWrapper();
-				break;
-			case 32:
-				calcAxaAlungire();
-				break;
-			case 33:
-				calcPerimeterWrapper();
-				break;
-			case 34:
-				calcThinnessRatio();
-				break;
-			case 35:
-				calcAspectRatio();
-				break;
-			case 36:
-				projections();
-				break;
-		}*/
-	//}
-	//while (op!=0);
+
+	printf("Step 3: Detectare colturi realizata! Apasa o tasta...\n");
+	Mat cornerImg = detectFinderPatternsAndColor(binImg);
+	waitKey();
+		
+
 	
 	return 0;
 }
