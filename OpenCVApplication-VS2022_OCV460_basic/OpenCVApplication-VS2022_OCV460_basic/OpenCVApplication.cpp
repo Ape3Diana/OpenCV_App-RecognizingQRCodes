@@ -1354,10 +1354,42 @@ Mat binarizare(Mat src)
 {
 	int height = src.rows;
 	int width = src.cols;
+	int M = height * width;
 
 	Mat dst = Mat(height, width, CV_8UC1);
 
-	int T = 128;
+	uchar minVal = 255;
+	uchar maxVal = 0;
+	long long sumAll = 0;
+
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			uchar val = src.at<uchar>(i, j);
+			sumAll += val;
+			if (val < minVal) minVal = val;
+			if (val > maxVal) maxVal = val;
+		}
+	}
+
+	double miu = (double)sumAll / M;
+
+	double sumVariance = 0;
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			uchar val = src.at<uchar>(i, j);
+			sumVariance += (val - miu) * (val - miu);
+		}
+	}
+	double sigma = sqrt(sumVariance / M);
+
+	printf("Miu (Valoarea medie) = %.2f\n", miu);
+	printf("Sigma (Deviatia standard) = %.2f\n", sigma);
+
+	int T = (minVal + maxVal) / 2;
 	int TNext = T;
 
 	do {
@@ -1381,14 +1413,11 @@ Mat binarizare(Mat src)
 			}
 		}
 
-		int V1 = count1 > 0 ? sum1 / count1 : 0; ///media pixelilor <= T
-		int V2 = count2 > 0 ? sum2 / count2 : 0; //media pixelilor > T
+		int V1 = count1 > 0 ? sum1 / count1 : 0;
+		int V2 = count2 > 0 ? sum2 / count2 : 0;
 
-
-		///noul prag la urmatoarea iteratieT(i+1)
 		TNext = (V1 + V2) / 2;
-	} while (T != TNext); ///pragul nu se mai modifica
-
+	} while (T != TNext);
 
 	printf("Pragul optim calculat = %d\n", T);
 
@@ -1404,22 +1433,23 @@ Mat binarizare(Mat src)
 		}
 	}
 
-
 	imshow("Imagine binarizata (alb+negru)", dst);
 
 	return dst;
-	
 }
 
 
 Mat detectFinderPatternsAndColor(Mat binImg) {
 	int height = binImg.rows;
 	int width = binImg.cols;
-
 	Mat display;
 	cvtColor(binImg, display, COLOR_GRAY2BGR);
 
-	std::vector<Point> centers;
+	struct Candidate {
+		Point pos;
+		float unit;
+	};
+	std::vector<Candidate> candidates;
 
 	for (int i = 0; i < height; i++) {
 		std::vector<int> counter(5, 0);
@@ -1435,56 +1465,28 @@ Mat detectFinderPatternsAndColor(Mat binImg) {
 				if (currentState == 4) {
 					int totalWidth = counter[0] + counter[1] + counter[2] + counter[3] + counter[4];
 					float unit = (float)totalWidth / 7.0f;
-					float maxErr = unit * 0.5f;
+					float maxErr = unit * 0.4f;
 
-					if (abs(counter[0] - unit) < maxErr &&
-						abs(counter[1] - unit) < maxErr &&
-						abs(counter[2] - unit * 3) < maxErr * 3 &&
-						abs(counter[3] - unit) < maxErr &&
+					if (abs(counter[0] - unit) < maxErr && abs(counter[1] - unit) < maxErr &&
+						abs(counter[2] - unit * 3) < maxErr * 3 && abs(counter[3] - unit) < maxErr &&
 						abs(counter[4] - unit) < maxErr) {
 
 						int centerX = j - counter[4] - counter[3] - counter[2] / 2;
-						int centerY = i;
+						int up = i, down = i;
+						while (isInside(binImg, up - 1, centerX) && binImg.at<uchar>(up - 1, centerX) == 0) up--;
+						while (isInside(binImg, down + 1, centerX) && binImg.at<uchar>(down + 1, centerX) == 0) down++;
+						int correctedCenterY = (up + down) / 2;
 
-						std::vector<int> vCounter(5, 0);
-						int row = centerY - counter[2];
-						int vState = 0;
-
-						while (row < centerY + counter[2] && isInside(binImg, row, centerX)) {
-							uchar vPixel = binImg.at<uchar>(row, centerX);
-							bool vIsBlack = (vPixel == 0);
-							if (vIsBlack == (vState % 2 == 0)) {
-								vCounter[vState]++;
-							}
-							else {
-								if (vState == 4) break;
-								vState++;
-								vCounter[vState]++;
-							}
-							row++;
+						bool duplicate = false;
+						for (const auto& c : candidates) {
+							if (norm(c.pos - Point(centerX, correctedCenterY)) < unit * 3) duplicate = true;
 						}
-
-						if (vState == 4) {
-							int vTotal = vCounter[0] + vCounter[1] + vCounter[2] + vCounter[3] + vCounter[4];
-							float vUnit = (float)vTotal / 7.0f;
-							if (abs(vCounter[2] - vUnit * 3) < vUnit) {
-								bool duplicate = false;
-								for (const auto& p : centers) {
-									if (norm(p - Point(centerX, centerY)) < unit * 2) duplicate = true;
-								}
-								if (!duplicate) {
-									centers.push_back(Point(centerX, centerY));
-									circle(display, Point(centerX, centerY), (int)unit * 2, Scalar(0, 0, 255), 3);
-								}
-							}
+						if (!duplicate) {
+							candidates.push_back({ Point(centerX, correctedCenterY), unit });
 						}
 					}
-					counter[0] = counter[2];
-					counter[1] = counter[3];
-					counter[2] = counter[4];
-					counter[3] = 1;
-					counter[4] = 0;
-					currentState = 3;
+					counter[0] = counter[2]; counter[1] = counter[3]; counter[2] = counter[4];
+					counter[3] = 1; counter[4] = 0; currentState = 3;
 				}
 				else {
 					currentState++;
@@ -1493,18 +1495,27 @@ Mat detectFinderPatternsAndColor(Mat binImg) {
 			}
 		}
 	}
-	if (centers.size() == 3) {
-		printf("Detectate %d puncte de control.\n", centers.size());
-	
-		imshow("DST: Puncte de Control pe Imagine Binarizata", display);
-	
+
+	if (candidates.size() > 3) {
+		std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
+			return a.unit > b.unit;
+			});
+		candidates.resize(3);
+	}
+
+	if (candidates.size() == 3) {
+		for (const auto& c : candidates) {
+			circle(display, c.pos, (int)(c.unit * 2), Scalar(0, 0, 255), 3);
+		}
+		printf("Detectate corect cele 3 puncte principale.\n");
+		imshow("DST: Puncte de Control Filtrate", display);
 	}
 	else {
-		printf("EROARE. Nu au fost identificate puncte de control!");
+		printf("Eroare: S-au gasit %zu candidati. Verificati binarizarea!\n", candidates.size());
 	}
+
 	return display;
 }
-
 
 int main() 
 {
