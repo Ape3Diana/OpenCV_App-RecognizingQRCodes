@@ -1442,8 +1442,8 @@ Mat binarizare(Mat src)
 Mat detectFinderPatternsAndColor(Mat binImg) {
 	int height = binImg.rows;
 	int width = binImg.cols;
-	Mat display;
-	cvtColor(binImg, display, COLOR_GRAY2BGR);
+	Mat dst;
+	cvtColor(binImg, dst, COLOR_GRAY2BGR);
 
 	struct Candidate {
 		Point pos;
@@ -1465,26 +1465,58 @@ Mat detectFinderPatternsAndColor(Mat binImg) {
 				if (currentState == 4) {
 					int totalWidth = counter[0] + counter[1] + counter[2] + counter[3] + counter[4];
 					float unit = (float)totalWidth / 7.0f;
-					float maxErr = unit * 0.4f;
+					float maxErr = unit * 0.5f;
 
+					// verifica proportia pe orizontala
 					if (abs(counter[0] - unit) < maxErr && abs(counter[1] - unit) < maxErr &&
 						abs(counter[2] - unit * 3) < maxErr * 3 && abs(counter[3] - unit) < maxErr &&
 						abs(counter[4] - unit) < maxErr) {
 
+						// calculeaza centrul pe orizontala
 						int centerX = j - counter[4] - counter[3] - counter[2] / 2;
+
+						// realizeaza centrarea pe verticala
 						int up = i, down = i;
 						while (isInside(binImg, up - 1, centerX) && binImg.at<uchar>(up - 1, centerX) == 0) up--;
 						while (isInside(binImg, down + 1, centerX) && binImg.at<uchar>(down + 1, centerX) == 0) down++;
 						int correctedCenterY = (up + down) / 2;
 
-						bool duplicate = false;
-						for (const auto& c : candidates) {
-							if (norm(c.pos - Point(centerX, correctedCenterY)) < unit * 3) duplicate = true;
-						}
-						if (!duplicate) {
-							candidates.push_back({ Point(centerX, correctedCenterY), unit });
+						// verifica proportia pe verticala
+						int vCounter[5] = { 0, 0, 0, 0, 0 };
+						int y = correctedCenterY;
+
+						// numara pixelii in sus
+						while (y >= 0 && binImg.at<uchar>(y, centerX) == 0) { vCounter[2]++; y--; }
+						while (y >= 0 && binImg.at<uchar>(y, centerX) != 0) { vCounter[1]++; y--; }
+						while (y >= 0 && binImg.at<uchar>(y, centerX) == 0) { vCounter[0]++; y--; }
+
+						// numara pixelii in jos
+						y = correctedCenterY + 1;
+						while (y < height && binImg.at<uchar>(y, centerX) == 0) { vCounter[2]++; y++; }
+						while (y < height && binImg.at<uchar>(y, centerX) != 0) { vCounter[3]++; y++; }
+						while (y < height && binImg.at<uchar>(y, centerX) == 0) { vCounter[4]++; y++; }
+
+						int vTotal = vCounter[0] + vCounter[1] + vCounter[2] + vCounter[3] + vCounter[4];
+						float vUnit = (float)vTotal / 7.0f;
+						float vMaxErr = vUnit * 0.5f;
+
+						// accepta candidatul daca proportia 1:1:3:1:1 este valida si pe verticala
+						if (abs(vCounter[0] - vUnit) < vMaxErr && abs(vCounter[1] - vUnit) < vMaxErr &&
+							abs(vCounter[2] - vUnit * 3) < vMaxErr * 3 && abs(vCounter[3] - vUnit) < vMaxErr &&
+							abs(vCounter[4] - vUnit) < vMaxErr &&
+							abs(unit - vUnit) < unit * 0.5f) { // verifica daca dimensiunea verticala este similara cu cea orizontala
+
+							// evita inregistrarea multipla a aceluiasi punct
+							bool duplicate = false;
+							for (const auto& c : candidates) {
+								if (norm(c.pos - Point(centerX, correctedCenterY)) < unit * 3) duplicate = true;
+							}
+							if (!duplicate) {
+								candidates.push_back({ Point(centerX, correctedCenterY), (unit + vUnit) / 2.0f });
+							}
 						}
 					}
+					// reseteaza contoarele pentru continuarea scanarii
 					counter[0] = counter[2]; counter[1] = counter[3]; counter[2] = counter[4];
 					counter[3] = 1; counter[4] = 0; currentState = 3;
 				}
@@ -1496,25 +1528,63 @@ Mat detectFinderPatternsAndColor(Mat binImg) {
 		}
 	}
 
-	if (candidates.size() > 3) {
-		std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
-			return a.unit > b.unit;
-			});
-		candidates.resize(3);
+	// filtrare geometrica: cauta 3 puncte care formeaza un triunghi dreptunghic isoscel
+	std::vector<Candidate> validQR;
+	if (candidates.size() >= 3) {
+		for (size_t i = 0; i < candidates.size(); i++) {
+			for (size_t j = i + 1; j < candidates.size(); j++) {
+				for (size_t k = j + 1; k < candidates.size(); k++) {
+
+					// calculeaza distantele dintre cele 3 puncte
+					float d1 = norm(candidates[i].pos - candidates[j].pos);
+					float d2 = norm(candidates[i].pos - candidates[k].pos);
+					float d3 = norm(candidates[j].pos - candidates[k].pos);
+
+					// sorteaza distantele pentru a gasi ipotenuza
+					float dists[3] = { d1, d2, d3 };
+					std::sort(dists, dists + 3);
+
+					float cateta1 = dists[0];
+					float cateta2 = dists[1];
+					float ipotenuza = dists[2];
+
+					// verifica daca laturile mici sunt aproximativ egale in lungime
+					if (abs(cateta1 - cateta2) < 0.3 * cateta2) {
+
+						// aplica teorema lui pitagora
+						float pitagora = cateta1 * cateta1 + cateta2 * cateta2;
+						float c2 = ipotenuza * ipotenuza;
+
+						// accepta grupul daca respecta teorema cu o toleranta de perspectiva
+						if (abs(pitagora - c2) < 0.3 * c2) {
+							validQR.push_back(candidates[i]);
+							validQR.push_back(candidates[j]);
+							validQR.push_back(candidates[k]);
+							break;
+						}
+					}
+				}
+				if (!validQR.empty()) break;
+			}
+			if (!validQR.empty()) break;
+		}
 	}
+
+	candidates = validQR;
 
 	if (candidates.size() == 3) {
 		for (const auto& c : candidates) {
-			circle(display, c.pos, (int)(c.unit * 2), Scalar(0, 0, 255), 3);
+			circle(dst, c.pos, (int)(c.unit * 2), Scalar(0, 0, 255), 3);
 		}
 		printf("Detectate corect cele 3 puncte principale.\n");
-		imshow("DST: Puncte de Control Filtrate", display);
+		imshow("DST: Puncte de Control Filtrate", dst);
 	}
 	else {
-		printf("Eroare: S-au gasit %zu candidati. Verificati binarizarea!\n", candidates.size());
+		printf("Nu a fost detectat niciun cod QR valid in imagine.\n");
+		imshow("DST: Puncte de Control Filtrate", dst);
 	}
 
-	return display;
+	return dst;
 }
 
 int main() 
