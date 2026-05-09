@@ -1597,6 +1597,16 @@ int main()
 	printf("Selecteaza imaginea:\n");
 
 	Mat ogImg = openImage();
+	int maxDim = 600;
+
+	if (ogImg.cols > maxDim || ogImg.rows > maxDim) {
+		double factor = (double)maxDim / max(ogImg.cols, ogImg.rows);
+		Mat resizedImg;
+
+		resize(ogImg, resizedImg, Size(), factor, factor, INTER_LINEAR);
+
+		ogImg = resizedImg;
+	}
 	printf("Imaginea a fost incarcata! Apasa o tasta...\n");
 	waitKey();
 
