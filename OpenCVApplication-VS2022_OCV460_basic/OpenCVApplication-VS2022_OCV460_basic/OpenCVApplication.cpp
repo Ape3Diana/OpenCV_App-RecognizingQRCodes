@@ -1439,7 +1439,7 @@ Mat binarizare(Mat src)
 }
 
 
-Mat detectFinderPatternsAndColor(Mat binImg) {
+Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f> &outCorners) {
 	int height = binImg.rows;
 	int width = binImg.cols;
 	Mat dst;
@@ -1584,7 +1584,139 @@ Mat detectFinderPatternsAndColor(Mat binImg) {
 		imshow("DST: Puncte de Control Filtrate", dst);
 	}
 
+	for (const auto& c : candidates)
+		outCorners.push_back(Point2f(c.pos));
 	return dst;
+}
+
+Mat applyAffineCorrection(Mat binImg, std::vector<Point2f> corners, int& outVersion) {
+	// gaseste TL = cel cu x+y minim
+	int idxTL = 0;
+	for (int i = 1; i < 3; i++)
+		if (corners[i].x + corners[i].y < corners[idxTL].x + corners[idxTL].y)
+			idxTL = i;
+
+	Point2f pTL = corners[idxTL];
+	std::vector<Point2f> rest;
+	for (int i = 0; i < 3; i++) if (i != idxTL) rest.push_back(corners[i]);
+
+	// dintre celelalte: TR are x mai mare, BL are y mai mare
+	Point2f pTR, pBL;
+	if (rest[0].x > rest[1].x) { pTR = rest[0]; pBL = rest[1]; }
+	else { pTR = rest[1]; pBL = rest[0]; }
+
+	Point2f pBR = pTR + pBL - pTL;
+
+	int warpSize = 400;
+	std::vector<Point2f> srcPts = { pTL, pTR, pBL, pBR };
+	std::vector<Point2f> dstPts = {
+		Point2f(0, 0), Point2f(warpSize, 0),
+		Point2f(0, warpSize), Point2f(warpSize, warpSize)
+	};
+
+	Mat H = getPerspectiveTransform(srcPts, dstPts);
+	Mat warped;
+	warpPerspective(binImg, warped, H, Size(warpSize, warpSize));
+	imshow("Warped QR", warped);
+
+	int moduleSize = 1;
+	int row = warpSize / 2;
+	int j = 0;
+	while (j < warpSize && warped.at<uchar>(row, j) != 0) j++;
+	int startBlack = j;
+	while (j < warpSize && warped.at<uchar>(row, j) == 0) j++;
+	moduleSize = max(1, j - startBlack);
+
+	int N = warpSize / moduleSize;
+	int version = max(1, (int)round((N - 17.0f) / 4.0f));
+	N = 4 * version + 17;
+	moduleSize = warpSize / N;
+
+	outVersion = version;
+	printf("Versiunea: %d, grila: %dx%d, modul: %dpx\n", version, N, N, moduleSize);
+
+	return warped;
+}
+
+std::vector<int> getAlignmentPositions(int version) {
+	static std::vector<std::vector<int>> table = {
+		{},
+		{6, 18},
+		{6, 22},
+		{6, 26},
+		{6, 30},
+		{6, 34},
+		{6, 22, 38},
+		{6, 24, 42},
+		{6, 26, 46},
+		{6, 28, 50},
+	};
+	if (version < 1 || version > 10) return {};
+	return table[version - 1];
+}
+
+std::vector<Point> detectAlignmentPatterns(Mat warped, int version, int moduleSize) {
+	std::vector<Point> found;
+	if (version < 2) {
+		printf("Versiunea 1: fara alignment patterns.\n");
+		return found;
+	}
+
+	std::vector<int> pos = getAlignmentPositions(version);
+	int warpSize = warped.cols;
+
+	for (int r : pos) {
+		for (int c : pos) {
+			bool nearTL = (r <= 8 && c <= 8);
+			bool nearTR = (r <= 8 && c >= (int)pos.back() - 2);
+			bool nearBL = (r >= (int)pos.back() - 2 && c <= 8);
+			if (nearTL || nearTR || nearBL) continue;
+
+			int cx = c * moduleSize + moduleSize / 2;
+			int cy = r * moduleSize + moduleSize / 2;
+
+			if (cy < warpSize && cx < warpSize && warped.at<uchar>(cy, cx) == 0) {
+				found.push_back(Point(cx, cy));
+				printf("Alignment pattern la modul (%d,%d) -> pixel (%d,%d)\n", r, c, cx, cy);
+			}
+		}
+	}
+
+	Mat viz;
+	cvtColor(warped, viz, COLOR_GRAY2BGR);
+	for (const auto& p : found)
+		rectangle(viz, Point(p.x - 2 * moduleSize, p.y - 2 * moduleSize),
+			Point(p.x + 2 * moduleSize, p.y + 2 * moduleSize),
+			Scalar(0, 255, 0), 2);
+	imshow("Alignment Patterns", viz);
+
+	return found;
+}
+
+Mat sampleModuleGrid(Mat warped, int version, int moduleSize) {
+	int N = 4 * version + 17;
+	Mat grid(N, N, CV_8UC1);
+
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++) {
+			int cy = i * moduleSize + moduleSize / 2;
+			int cx = j * moduleSize + moduleSize / 2;
+			uchar val = warped.at<uchar>(min(cy, warped.rows - 1), min(cx, warped.cols - 1));
+			grid.at<uchar>(i, j) = (val == 0) ? 1 : 0;
+		}
+
+	int cellViz = 10;
+	Mat vizGrid(N * cellViz, N * cellViz, CV_8UC3, Scalar(200, 200, 200));
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++) {
+			Scalar color = (grid.at<uchar>(i, j) == 1) ? Scalar(0, 0, 0) : Scalar(255, 255, 255);
+			rectangle(vizGrid, Point(j * cellViz, i * cellViz),
+				Point((j + 1) * cellViz - 1, (i + 1) * cellViz - 1), color, FILLED);
+		}
+	imshow("Grila Module QR", vizGrid);
+	printf("Grila %dx%d construita.\n", N, N);
+
+	return grid;
 }
 
 int main() 
@@ -1620,7 +1752,20 @@ int main()
 
 
 	printf("Step 3: Detectare colturi realizata! Apasa o tasta...\n");
-	Mat cornerImg = detectFinderPatternsAndColor(binImg);
+	std::vector<Point2f> corners;
+	Mat cornerImg = detectFinderPatternsAndColor(binImg, corners);
+	waitKey();
+
+	int version = 1;
+	Mat warped = applyAffineCorrection(binImg, corners, version);
+	waitKey();
+
+	int moduleSize = 400 / (4 * version + 17);
+
+	std::vector<Point> alignPts = detectAlignmentPatterns(warped, version, moduleSize);
+	waitKey();
+
+	Mat moduleGrid = sampleModuleGrid(warped, version, moduleSize);
 	waitKey();
 		
 
