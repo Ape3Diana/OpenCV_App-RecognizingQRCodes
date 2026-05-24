@@ -108,88 +108,6 @@ void testNegativeImage()
 	}
 }
 
-void testNegativeImageFast()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = src.clone();
-
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		// The fastest approach of accessing the pixels -> using pointers
-		uchar *lpSrc = src.data;
-		uchar *lpDst = dst.data;
-		int w = (int) src.step; // no dword alignment is done !!!
-		for (int i = 0; i<height; i++)
-			for (int j = 0; j < width; j++) {
-				uchar val = lpSrc[i*w + j];
-				lpDst[i*w + j] = 255 - val;
-			}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image",src);
-		imshow("negative image",dst);
-		waitKey();
-	}
-}
-
-
-
-void testBGR2HSV()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname);
-		int height = src.rows;
-		int width = src.cols;
-
-		// HSV components
-		Mat H = Mat(height, width, CV_8UC1);
-		Mat S = Mat(height, width, CV_8UC1);
-		Mat V = Mat(height, width, CV_8UC1);
-
-		// Defining pointers to each matrix (8 bits/pixels) of the individual components H, S, V 
-		uchar* lpH = H.data;
-		uchar* lpS = S.data;
-		uchar* lpV = V.data;
-
-		Mat hsvImg;
-		cvtColor(src, hsvImg, COLOR_BGR2HSV);
-
-		// Defining the pointer to the HSV image matrix (24 bits/pixel)
-		uchar* hsvDataPtr = hsvImg.data;
-
-		for (int i = 0; i<height; i++)
-		{
-			for (int j = 0; j<width; j++)
-			{
-				int hi = i*width * 3 + j * 3;
-				int gi = i*width + j;
-
-				lpH[gi] = hsvDataPtr[hi] * 510 / 360;	// lpH = 0 .. 255
-				lpS[gi] = hsvDataPtr[hi + 1];			// lpS = 0 .. 255
-				lpV[gi] = hsvDataPtr[hi + 2];			// lpV = 0 .. 255
-			}
-		}
-
-		imshow("input image", src);
-		imshow("H", H);
-		imshow("S", S);
-		imshow("V", V);
-
-		waitKey();
-	}
-}
-
 void testResize()
 {
 	char fname[MAX_PATH];
@@ -367,400 +285,6 @@ void testMouseClick()
 	}
 }
 
-//parat de culoare neagra de 50x50 undeva pe o imagine
-void testBlackSquare()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = Mat(height, width, CV_8UC1);
-		// CV_8UC1 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				if (i<50 && j<50)
-					dst.at<uchar>(i, j) = 0;
-				else {
-					uchar val = src.at<uchar>(i, j); //uchar -> tipul de date cum e stocat un pixel in matricea src 
-					uchar neg = 255 - val;
-					dst.at<uchar>(i, j) = neg;
-				}
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("negative and black square image", dst);
-		waitKey();
-	}
-}
-
-//parat de culoare neagra de 50x50 undeva pe o imagine, si un patrat alb
-void testBlackSquareAndWhiteSquare()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = Mat(height, width, CV_8UC1);
-		// CV_8UC1 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				if (i < 50 && j < 50)
-					dst.at<uchar>(i, j) = 0;
-				else if (i>= height - 50 && j >= width - 50)
-					dst.at<uchar>(i, j) = 255;
-				else {
-					uchar val = src.at<uchar>(i, j); //uchar -> tipul de date cum e stocat un pixel in matricea src 
-					uchar neg = 255 - val;
-					dst.at<uchar>(i, j) = neg;
-				}
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("negative and black square image", dst);
-		waitKey();
-	}
-}
-
-
-//destinatie = sursa + 50
-void testSourcePlusVal50()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = Mat(height, width, CV_8UC1);
-		// CV_8UC1 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				uchar val = src.at<uchar>(i, j); //uchar -> tipul de date cum e stocat un pixel in matricea src 
-				uchar newVal = val +50;
-				dst.at<uchar>(i, j) = newVal;
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("new image", dst);
-		waitKey();
-	}
-}
-
-void testSourcePlusVal150()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = Mat(height, width, CV_8UC1);
-		// CV_8UC1 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				uchar val = src.at<uchar>(i, j); //uchar -> tipul de date cum e stocat un pixel in matricea src 
-				uchar newVal = val + 150;
-				dst.at<uchar>(i, j) = newVal;
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("new image", dst);
-		waitKey();
-	}
-}
-
-void testSourceMinusVal50()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = Mat(height, width, CV_8UC1);
-		// CV_8UC1 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				uchar val = src.at<uchar>(i, j); //uchar -> tipul de date cum e stocat un pixel in matricea src 
-				uchar newVal = val - 50;
-				printf("%d ", newVal);
-				dst.at<uchar>(i, j) = newVal;
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("new image", dst);
-		waitKey();
-	}
-}
-
-void testFlip()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst1 = Mat(height, width, CV_8UC1);
-		Mat dst2 = Mat(height, width, CV_8UC1);
-		// CV_8UC1 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < (width +1)/2; j++)
-			{
-				uchar aux = src.at<uchar>(i, width - j - 1);
-				dst1.at<uchar>(i, width - j - 1) = src.at<uchar>(i, j);
-				dst1.at<uchar>(i, j) = aux;
-				//uchar val = src.at<uchar>(i, j); //uchar -> tipul de date cum e stocat un pixel in matricea src 
-				//uchar neg = 255 - val;
-				
-			}
-		}
-
-		for (int i = 0; i < (height + 1) / 2; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				uchar aux = src.at<uchar>(height - i - 1, j);
-				dst2.at<uchar>(height - i - 1 , j ) = src.at<uchar>(i, j);
-				dst2.at<uchar>(i, j) = aux;
-				//uchar val = src.at<uchar>(i, j); //uchar -> tipul de date cum e stocat un pixel in matricea src 
-				//uchar neg = 255 - val;
-
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("x-flip", dst1);
-		imshow("y-flip", dst2);
-		waitKey();
-	}
-}
-
-
-void testColourImageAndSquare()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_COLOR);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = Mat(height, width, CV_8UC3);
-		// CV_8UC3 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				if(i<70 && j<70)
-					dst.at<Vec3b>(i, j) = Vec3b(0, 255, 0);
-				else {
-					//uchar val =  //uchar -> tipul de date cum e stocat un pixel in matricea src 
-					dst.at<Vec3b>(i, j) = src.at<Vec3b>(i, j);
-				}
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("color image and square", dst);
-		waitKey();
-	}
-}
-
-void testColourImageAndPlus50AtGreenCanal()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_COLOR);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = Mat(height, width, CV_8UC3);
-		// CV_8UC3 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				Vec3b val = src.at<Vec3b>(i, j); 
-				val[1] = val[1] + 50;
-				dst.at<Vec3b>(i, j) = val;
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("color image and val green + 50", dst);
-		waitKey();
-	}
-}
-
-void testColourImageAndKeepGreenCanal()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_COLOR);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dst = Mat(height, width, CV_8UC3);
-		// CV_8UC3 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				Vec3b val = src.at<Vec3b>(i, j);
-				val[0] = 0;
-				val[1] = val[1];
-				val[2] = 0;
-				dst.at<Vec3b>(i, j) = val;
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("color image and val green + 50", dst);
-		waitKey();
-	}
-}
-
-void testColourImageAndGreyscaleOn3Channels()
-{
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		//masoara timpul de procesare a imaginii
-		double t = (double)getTickCount(); // Get the current time [s]
-
-		Mat src = imread(fname, IMREAD_COLOR);
-		int height = src.rows;
-		int width = src.cols;
-		Mat dstB = Mat(height, width, CV_8UC1);
-		Mat dstG = Mat(height, width, CV_8UC1);
-		Mat dstR = Mat(height, width, CV_8UC1);
-		// CV_8UC3 -> Accessing individual pixels in an 8 bits/pixel image
-		// Inefficient way -> slow
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				Vec3b val = src.at<Vec3b>(i, j);
-				dstR.at<uchar>(i, j) = val[0];
-				dstG.at<uchar>(i, j) = val[1];
-				dstB.at<uchar>(i, j) = val[2];
-			}
-		}
-
-		// Get the current time again and compute the time difference [s]
-		t = ((double)getTickCount() - t) / getTickFrequency();
-		// Print (in the console window) the processing time in [ms] 
-		printf("Time = %.3f [ms]\n", t * 1000);
-
-		imshow("input image", src);
-		imshow("color image RED", dstR);
-		imshow("color image GREEN", dstG);
-		imshow("color image BLUE", dstB);
-		waitKey();
-	}
-}
-
 void testColourImageConvToGreyscale()
 {
 	char fname[MAX_PATH];
@@ -800,9 +324,6 @@ void testColourImageConvToGreyscale()
 		waitKey();
 	}
 }
-
-
-
 
 int isInside(Mat img, int i, int j)
 {
@@ -1095,220 +616,6 @@ void histogramWithThresholdsAndCorrection()
 	}
 }
 
-int calcArea(Mat src) {
-	int height = src.rows;
-	int width = src.cols;
-
-	int area = 0;
-	for (int i = 0; i < height; i++)
-		for (int j = 0; j < width; j++)
-			area += (src.at<uchar>(i, j) == 0 ? 1 : 0); 
-
-	return area;
-}
-
-void calcAreaWrapper() {
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-
-		imshow("input image", src);
-		printf("The area of the object is %d pixels\n", calcArea(src));
-		waitKey();
-	}
-}
-
-
-void calcCentrulDeMasa(Mat src, int* r, int* c, int area) {
-	int height = src.rows;
-	int width = src.cols;
-	
-	for (int i = 0; i < height; i++)
-		for (int j = 0; j < width; j++) {
-			*r += (src.at<uchar>(i, j) == 0 ? i : 0);
-			*c += (src.at<uchar>(i, j) == 0 ? j : 0);
-		}
-
-	*r /= area;
-	*c /= area;
-}
-
-void calcCentrulDeMasaWrapper() {
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		int r = 0, c = 0;
-		int area = calcArea(src);
-		calcCentrulDeMasa(src, &r, &c, area);
-
-		imshow("input image", src);
-		printf("The center of the object is at coordinates (%d, %d)\n", r , c );
-		waitKey();
-	}
-}
-
-void calcAxaAlungire() {
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		int r = 0, c = 0;
-		int area = calcArea(src);
-		calcCentrulDeMasa(src, &r, &c, area);
-
-		double s = 0, s1 = 0, s2 = 0;
-
-		for (int i = 0; i < height; i++)
-			for (int j = 0; j < width; j++) {
-				s += (src.at<uchar>(i, j) == 0 ? (i - r) * (j - c) : 0);
-				s1 += (src.at<uchar>(i, j) == 0 ? (j - c) * (j - c) : 0);
-				s2 += (src.at<uchar>(i, j) == 0 ? (i - r) * (i - r) : 0);
-			}
-
-		imshow("input image", src);
-		printf("Axa de alungire la %f grade\n", 90*atan2(2*s, s1-s2)/PI);
-		waitKey();
-	}
-}
-
-int calcPerimeter(Mat src, int height, int width) {
-	int p = 0;
-
-	for (int i = 1; i < height - 1; i++)
-		for (int j = 1; j < width - 1; j++) {
-			if (src.at<uchar>(i, j) == 0 &&
-				(src.at<uchar>(i - 1, j) != 0 ||
-					src.at<uchar>(i, j + 1) != 0 ||
-					src.at<uchar>(i + 1, j) != 0 ||
-					src.at<uchar>(i, j - 1) != 0)) p++;
-		}
-
-	return p;
-}
-
-void calcPerimeterWrapper() {
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		
-		imshow("input image", src);
-		printf("Perimeter is %d\n", calcPerimeter(src, height, width));
-		waitKey();
-	}
-}
-
-
-void calcThinnessRatio() {
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-
-		imshow("input image", src);
-		printf("Thinness ratio is %f\n", 4*PI*((float)calcArea(src)/pow(calcPerimeter(src,height,width), 2)));
-		waitKey();
-	}
-}
-
-void calcAspectRatio() {
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-		int rmin = height;
-		int rmax = 0;
-		int cmin = width;
-		int cmax = 0;
-
-		Mat dst = Mat(height, width, CV_8UC3);
-
-		for (int i = 0; i < height; i++)
-			for (int j = 0; j < width; j++) {
-				dst.at<Vec3b>(i, j) = Vec3b(src.at<uchar>(i, j), src.at<uchar>(i, j), src.at<uchar>(i, j));
-
-				if (src.at<uchar>(i, j) == 0 && i < rmin) rmin = i;
-				if (src.at<uchar>(i, j) == 0 && i > rmax) rmax = i;
-				if (src.at<uchar>(i, j) == 0 && j > cmax) cmax = j;
-				if (src.at<uchar>(i, j) == 0 && j < cmin) cmin = j;
-			}
-
-
-		for (int i = rmin; i <= rmax;i++) {
-			dst.at<Vec3b>(i, cmin) = Vec3b(0, 0, 255);
-			dst.at<Vec3b>(i, cmax) = Vec3b(0, 0, 255);
-		}
-			
-		for (int j = cmin;j <= cmax;j++) {
-			dst.at<Vec3b>(rmin, j) = Vec3b(0, 0, 255);
-			dst.at<Vec3b>(rmax, j) = Vec3b(0, 0, 255);
-		}
-				
-
-		imshow("input image", src);
-		imshow("output image", dst);
-
-		printf("Aspect ratio is %f\n", (float)(cmax-cmin+1)/(float)(rmax-rmin+1));
-		waitKey();
-	}
-}
-
-void projections() {
-	char fname[MAX_PATH];
-	while (openFileDlg(fname))
-	{
-		Mat src = imread(fname, IMREAD_GRAYSCALE);
-		int height = src.rows;
-		int width = src.cols;
-
-		Mat dstX = Mat(height, width, CV_8UC1);
-		Mat dstY = Mat(height, width, CV_8UC1);
-
-		int last = 0;
-
-		for (int i = 0; i < height; i++) {
-			last = 0;
-			for (int j = 0; j < width; j++)
-				if (src.at<uchar>(i, j) == 0)
-				{
-					dstY.at<uchar>(i, last) = src.at<uchar>(i, j);
-					last++;
-				} 
-		}
-
-		//last = height;
-		for (int j = 0; j < width; j++) {
-			last = height - 1;
-			for (int i = 0; i < height; i++)
-				if (src.at<uchar>(i, j) == 0)
-				{
-					dstX.at<uchar>(last, j) = src.at<uchar>(i, j);
-					last--;
-				}
-		}
-			
-
-		imshow("input image", src);
-		imshow("On Y axis", dstY);
-		imshow("On X axis", dstX);
-
-		waitKey();
-	}
-}
-
-
 ///////////////////////
 
 /// QR
@@ -1438,15 +745,80 @@ Mat binarizare(Mat src)
 	return dst;
 }
 
+Mat createStructuringElement() {
+	Mat element = Mat(3, 3, CV_8UC1, Scalar(255));
 
-Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f> &outCorners) {
+	element.at<uchar>(0, 1) = 0;
+	element.at<uchar>(1, 0) = 0;
+	element.at<uchar>(1, 1) = 0;
+	element.at<uchar>(1, 2) = 0;
+	element.at<uchar>(2, 1) = 0;
+
+	return element;
+}
+
+Mat dilatare(Mat src) {
+	Mat dst = src.clone();
+
+	int rows = src.rows;
+	int cols = src.cols;
+
+	Mat elStr = createStructuringElement();
+	int elRows = elStr.rows;
+	int elCols = elStr.cols;
+
+	for (int i = 1; i < rows - 1; i++)
+		for (int j = 1; j < cols - 1; j++) {
+			if (src.at<uchar>(i, j) == 0) {
+				for (int k = 0; k < elRows; k++)
+					for (int l = 0; l < elCols; l++) {
+						if (elStr.at<uchar>(k, l) == 0) {
+							int newI = i + k - 1;
+							int newJ = j + l - 1;
+							dst.at<uchar>(newI, newJ) = 0;
+						}
+					}
+			}
+		}
+
+	imshow("Dilatare", dst);
+
+	return dst;
+}
+
+Mat clearSaltAndPepper(Mat src) {
+	int height = src.rows;
+	int width = src.cols;
+
+	Mat dst_median = Mat(height, width, CV_8UC1, Scalar(0));
+	uchar vals[9];
+
+	for (int i = 0; i < height - 2; i++) {
+		for (int j = 0; j < width - 2; j++) {
+
+			int k = 0;
+			for (int p = i; p < i + 3; p++) {
+				for (int q = j; q < j + 3; q++) {
+					vals[k++] = src.at<uchar>(p, q);
+				}
+			}
+			std::sort(vals, vals + 9);
+			dst_median.at<uchar>(i + 1, j + 1) = vals[4];
+		}
+	}
+
+	imshow("CleanedSaltAndPepper", dst_median);
+	return dst_median;
+}
+
+Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f>& outCorners) {
 	int height = binImg.rows;
 	int width = binImg.cols;
 	Mat dst;
 	cvtColor(binImg, dst, COLOR_GRAY2BGR);
 
 	struct Candidate {
-		Point pos;
+		Point2f pos; // Modificat la Point2f pentru precizie sub-pixel!
 		float unit;
 	};
 	std::vector<Candidate> candidates;
@@ -1465,32 +837,25 @@ Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f> &outCorners) {
 				if (currentState == 4) {
 					int totalWidth = counter[0] + counter[1] + counter[2] + counter[3] + counter[4];
 					float unit = (float)totalWidth / 7.0f;
-					float maxErr = unit * 0.5f;
+					float maxErr = unit * 0.85f;
 
-					// verifica proportia pe orizontala
 					if (abs(counter[0] - unit) < maxErr && abs(counter[1] - unit) < maxErr &&
 						abs(counter[2] - unit * 3) < maxErr * 3 && abs(counter[3] - unit) < maxErr &&
 						abs(counter[4] - unit) < maxErr) {
 
-						// calculeaza centrul pe orizontala
 						int centerX = j - counter[4] - counter[3] - counter[2] / 2;
-
-						// realizeaza centrarea pe verticala
 						int up = i, down = i;
 						while (isInside(binImg, up - 1, centerX) && binImg.at<uchar>(up - 1, centerX) == 0) up--;
 						while (isInside(binImg, down + 1, centerX) && binImg.at<uchar>(down + 1, centerX) == 0) down++;
 						int correctedCenterY = (up + down) / 2;
 
-						// verifica proportia pe verticala
 						int vCounter[5] = { 0, 0, 0, 0, 0 };
 						int y = correctedCenterY;
 
-						// numara pixelii in sus
 						while (y >= 0 && binImg.at<uchar>(y, centerX) == 0) { vCounter[2]++; y--; }
 						while (y >= 0 && binImg.at<uchar>(y, centerX) != 0) { vCounter[1]++; y--; }
 						while (y >= 0 && binImg.at<uchar>(y, centerX) == 0) { vCounter[0]++; y--; }
 
-						// numara pixelii in jos
 						y = correctedCenterY + 1;
 						while (y < height && binImg.at<uchar>(y, centerX) == 0) { vCounter[2]++; y++; }
 						while (y < height && binImg.at<uchar>(y, centerX) != 0) { vCounter[3]++; y++; }
@@ -1498,25 +863,45 @@ Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f> &outCorners) {
 
 						int vTotal = vCounter[0] + vCounter[1] + vCounter[2] + vCounter[3] + vCounter[4];
 						float vUnit = (float)vTotal / 7.0f;
-						float vMaxErr = vUnit * 0.5f;
+						float vMaxErr = vUnit * 0.85f;
 
-						// accepta candidatul daca proportia 1:1:3:1:1 este valida si pe verticala
 						if (abs(vCounter[0] - vUnit) < vMaxErr && abs(vCounter[1] - vUnit) < vMaxErr &&
 							abs(vCounter[2] - vUnit * 3) < vMaxErr * 3 && abs(vCounter[3] - vUnit) < vMaxErr &&
 							abs(vCounter[4] - vUnit) < vMaxErr &&
-							abs(unit - vUnit) < unit * 0.5f) { // verifica daca dimensiunea verticala este similara cu cea orizontala
+							abs(unit - vUnit) < unit * 0.9f) {
 
-							// evita inregistrarea multipla a aceluiasi punct
-							bool duplicate = false;
-							for (const auto& c : candidates) {
-								if (norm(c.pos - Point(centerX, correctedCenterY)) < unit * 3) duplicate = true;
+							// --- MAGIA CENTRULUI DE MASA ---
+							// Colectam toti pixelii negri din ochiul central pt. a afla centrul perfect!
+							int sumX = 0, sumY = 0, count = 0;
+							int safeRadius = (unit + vUnit) / 2.0f * 1.5f;
+
+							for (int dy = -safeRadius; dy <= safeRadius; dy++) {
+								for (int dx = -safeRadius; dx <= safeRadius; dx++) {
+									int py = correctedCenterY + dy;
+									int px = centerX + dx;
+									if (isInside(binImg, py, px) && binImg.at<uchar>(py, px) == 0) {
+										sumX += px;
+										sumY += py;
+										count++;
+									}
+								}
 							}
-							if (!duplicate) {
-								candidates.push_back({ Point(centerX, correctedCenterY), (unit + vUnit) / 2.0f });
+
+							if (count > 0) {
+								float exactX = (float)sumX / count;
+								float exactY = (float)sumY / count;
+								float exactUnit = sqrt((float)count / 9.0f); // Invariant la rotatie!
+
+								bool duplicate = false;
+								for (const auto& c : candidates) {
+									if (norm(c.pos - Point2f(exactX, exactY)) < exactUnit * 3) duplicate = true;
+								}
+								if (!duplicate) {
+									candidates.push_back({ Point2f(exactX, exactY), exactUnit });
+								}
 							}
 						}
 					}
-					// reseteaza contoarele pentru continuarea scanarii
 					counter[0] = counter[2]; counter[1] = counter[3]; counter[2] = counter[4];
 					counter[3] = 1; counter[4] = 0; currentState = 3;
 				}
@@ -1528,115 +913,66 @@ Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f> &outCorners) {
 		}
 	}
 
-	// filtrare geometrica: cauta 3 puncte care formeaza un triunghi dreptunghic isoscel
-	std::vector<Candidate> validQR;
+	std::vector<Candidate> validQR, bestCombo;
+	float maxSize = 0.0f;
+
 	if (candidates.size() >= 3) {
 		for (size_t i = 0; i < candidates.size(); i++) {
 			for (size_t j = i + 1; j < candidates.size(); j++) {
 				for (size_t k = j + 1; k < candidates.size(); k++) {
+					float u1 = candidates[i].unit, u2 = candidates[j].unit, u3 = candidates[k].unit;
+					float avgUnit = (u1 + u2 + u3) / 3.0f;
 
-					// calculeaza distantele dintre cele 3 puncte
+					if (abs(u1 - avgUnit) > 0.6 * avgUnit || abs(u2 - avgUnit) > 0.6 * avgUnit || abs(u3 - avgUnit) > 0.6 * avgUnit)
+						continue;
+
 					float d1 = norm(candidates[i].pos - candidates[j].pos);
 					float d2 = norm(candidates[i].pos - candidates[k].pos);
 					float d3 = norm(candidates[j].pos - candidates[k].pos);
-
-					// sorteaza distantele pentru a gasi ipotenuza
 					float dists[3] = { d1, d2, d3 };
 					std::sort(dists, dists + 3);
 
-					float cateta1 = dists[0];
-					float cateta2 = dists[1];
-					float ipotenuza = dists[2];
-
-					// verifica daca laturile mici sunt aproximativ egale in lungime
-					if (abs(cateta1 - cateta2) < 0.3 * cateta2) {
-
-						// aplica teorema lui pitagora
-						float pitagora = cateta1 * cateta1 + cateta2 * cateta2;
-						float c2 = ipotenuza * ipotenuza;
-
-						// accepta grupul daca respecta teorema cu o toleranta de perspectiva
-						if (abs(pitagora - c2) < 0.3 * c2) {
-							validQR.push_back(candidates[i]);
-							validQR.push_back(candidates[j]);
-							validQR.push_back(candidates[k]);
-							break;
+					if (abs(dists[0] - dists[1]) < 0.7 * dists[1]) {
+						if (abs((dists[0] * dists[0] + dists[1] * dists[1]) - dists[2] * dists[2]) < 0.7 * (dists[2] * dists[2])) {
+							float currentSize = dists[0] + dists[1] + dists[2];
+							if (currentSize > maxSize) {
+								maxSize = currentSize;
+								bestCombo = { candidates[i], candidates[j], candidates[k] };
+							}
 						}
 					}
 				}
-				if (!validQR.empty()) break;
 			}
-			if (!validQR.empty()) break;
 		}
 	}
 
-	candidates = validQR;
-
+	candidates = bestCombo.empty() ? validQR : bestCombo;
 	if (candidates.size() == 3) {
-		for (const auto& c : candidates) {
-			circle(dst, c.pos, (int)(c.unit * 2), Scalar(0, 0, 255), 3);
-		}
+		for (const auto& c : candidates) circle(dst, c.pos, (int)(c.unit * 2), Scalar(0, 0, 255), 3);
 		printf("Detectate corect cele 3 puncte principale.\n");
-		imshow("DST: Puncte de Control Filtrate", dst);
 	}
-	else {
-		printf("Nu a fost detectat niciun cod QR valid in imagine.\n");
-		imshow("DST: Puncte de Control Filtrate", dst);
-	}
+	else printf("Eroare detectie.\n");
 
-	for (const auto& c : candidates)
-		outCorners.push_back(Point2f(c.pos));
+	imshow("DST: Puncte de Control Filtrate", dst);
+	for (const auto& c : candidates) outCorners.push_back(c.pos);
 	return dst;
 }
 
-Mat applyAffineCorrection(Mat binImg, std::vector<Point2f> corners, int& outVersion) {
-	// gaseste TL = cel cu x+y minim
-	int idxTL = 0;
-	for (int i = 1; i < 3; i++)
-		if (corners[i].x + corners[i].y < corners[idxTL].x + corners[idxTL].y)
-			idxTL = i;
+std::vector<Point2f> getMarkerInnerCorners(Mat binImg, Point2f center) {
+	int cx = round(center.x);
+	int cy = round(center.y);
+	int left = cx, right = cx, top = cy, bottom = cy;
 
-	Point2f pTL = corners[idxTL];
-	std::vector<Point2f> rest;
-	for (int i = 0; i < 3; i++) if (i != idxTL) rest.push_back(corners[i]);
+	// Acum ca imaginea va fi dreapta (din Pass 1), putem merge strict in linie dreapta 
+	// pentru a gasi marginile negre perfecte ale ochiului!
+	while (left > 0 && binImg.at<uchar>(cy, left) == 0) left--; left++;
+	while (right < binImg.cols - 1 && binImg.at<uchar>(cy, right) == 0) right++; right--;
+	while (top > 0 && binImg.at<uchar>(top, cx) == 0) top--; top++;
+	while (bottom < binImg.rows - 1 && binImg.at<uchar>(bottom, cx) == 0) bottom++; bottom--;
 
-	// dintre celelalte: TR are x mai mare, BL are y mai mare
-	Point2f pTR, pBL;
-	if (rest[0].x > rest[1].x) { pTR = rest[0]; pBL = rest[1]; }
-	else { pTR = rest[1]; pBL = rest[0]; }
-
-	Point2f pBR = pTR + pBL - pTL;
-
-	int warpSize = 400;
-	std::vector<Point2f> srcPts = { pTL, pTR, pBL, pBR };
-	std::vector<Point2f> dstPts = {
-		Point2f(0, 0), Point2f(warpSize, 0),
-		Point2f(0, warpSize), Point2f(warpSize, warpSize)
-	};
-
-	Mat H = getPerspectiveTransform(srcPts, dstPts);
-	Mat warped;
-	warpPerspective(binImg, warped, H, Size(warpSize, warpSize));
-	imshow("Warped QR", warped);
-
-	int moduleSize = 1;
-	int row = warpSize / 2;
-	int j = 0;
-	while (j < warpSize && warped.at<uchar>(row, j) != 0) j++;
-	int startBlack = j;
-	while (j < warpSize && warped.at<uchar>(row, j) == 0) j++;
-	moduleSize = max(1, j - startBlack);
-
-	int N = warpSize / moduleSize;
-	int version = max(1, (int)round((N - 17.0f) / 4.0f));
-	N = 4 * version + 17;
-	moduleSize = warpSize / N;
-
-	outVersion = version;
-	printf("Versiunea: %d, grila: %dx%d, modul: %dpx\n", version, N, N, moduleSize);
-
-	return warped;
+	return { Point2f(left, top), Point2f(right, top), Point2f(left, bottom), Point2f(right, bottom) };
 }
+
 
 std::vector<int> getAlignmentPositions(int version) {
 	static std::vector<std::vector<int>> table = {
@@ -1653,6 +989,71 @@ std::vector<int> getAlignmentPositions(int version) {
 	};
 	if (version < 1 || version > 10) return {};
 	return table[version - 1];
+}
+
+Mat applyAffineCorrection(Mat binImg, std::vector<Point2f> corners, int& outVersion) {
+	Mat processedImg = dilatare(binImg);
+
+	int idxTL = 0;
+	for (int i = 1; i < 3; i++)
+		if (corners[i].x + corners[i].y < corners[idxTL].x + corners[idxTL].y) idxTL = i;
+
+	Point2f pTL = corners[idxTL];
+	std::vector<Point2f> rest;
+	for (int i = 0; i < 3; i++) if (i != idxTL) rest.push_back(corners[i]);
+
+	Point2f pTR, pBL;
+	if (rest[0].x > rest[1].x) { pTR = rest[0]; pBL = rest[1]; }
+	else { pTR = rest[1]; pBL = rest[0]; }
+
+	// --- MARIM PANZA LA 500x500 PENTRU A NU MAI TAIA NIMIC ---
+	int warpSize = 500;
+	int version = 1;
+	outVersion = version;
+	int N_qr = 21;
+	float modSize = 16.0f;
+
+	// Calculam o margine (padding) groasa de siguranta
+	float padding = (warpSize - (N_qr * modSize)) / 2.0f; // Va fi aprox 82 de pixeli
+	float offset = padding + 3.5f * modSize;
+	float endOffset = padding + (N_qr - 3.5f) * modSize;
+
+	// PASS 1: AFFINE TRANSFORM (Doar indreptam rota?ia)
+	Point2f srcPts[3] = { pTL, pTR, pBL };
+	Point2f dstPts[3] = { Point2f(offset, offset), Point2f(endOffset, offset), Point2f(offset, endOffset) };
+	Mat M = getAffineTransform(srcPts, dstPts);
+	Mat affineWarped;
+	warpAffine(processedImg, affineWarped, M, Size(warpSize, warpSize), INTER_NEAREST, BORDER_CONSTANT, Scalar(255));
+
+	// PASS 2: Gasim cele 12 colturi in imaginea indreptata
+	std::vector<Point2f> pTL_corners = getMarkerInnerCorners(affineWarped, Point2f(offset, offset));
+	std::vector<Point2f> pTR_corners = getMarkerInnerCorners(affineWarped, Point2f(endOffset, offset));
+	std::vector<Point2f> pBL_corners = getMarkerInnerCorners(affineWarped, Point2f(offset, endOffset));
+
+	std::vector<Point2f> srcH, dstH;
+	srcH.insert(srcH.end(), pTL_corners.begin(), pTL_corners.end());
+	srcH.insert(srcH.end(), pTR_corners.begin(), pTR_corners.end());
+	srcH.insert(srcH.end(), pBL_corners.begin(), pBL_corners.end());
+
+	auto addEyeDst = [&](float startCol, float startRow) {
+		dstH.push_back(Point2f(padding + (startCol + 2) * modSize, padding + (startRow + 2) * modSize));
+		dstH.push_back(Point2f(padding + (startCol + 5) * modSize, padding + (startRow + 2) * modSize));
+		dstH.push_back(Point2f(padding + (startCol + 2) * modSize, padding + (startRow + 5) * modSize));
+		dstH.push_back(Point2f(padding + (startCol + 5) * modSize, padding + (startRow + 5) * modSize));
+		};
+
+	// Generam coordonatele matematice absolute
+	addEyeDst(0, 0);       // Ochiul TL
+	addEyeDst(N_qr - 7, 0); // Ochiul TR
+	addEyeDst(0, N_qr - 7); // Ochiul BL
+
+	// PASS 3: HOMOGRAPHY (Aplica corectia exacta pentru acel decalaj 3D de 7%)
+	Mat H = findHomography(srcH, dstH);
+	Mat finalWarped;
+	warpPerspective(affineWarped, finalWarped, H, Size(warpSize, warpSize), INTER_NEAREST, BORDER_CONSTANT, Scalar(255));
+
+	imshow("Warped QR (Matematica Suprema)", finalWarped);
+	return finalWarped;
 }
 
 std::vector<Point> detectAlignmentPatterns(Mat warped, int version, int moduleSize) {
@@ -1693,17 +1094,36 @@ std::vector<Point> detectAlignmentPatterns(Mat warped, int version, int moduleSi
 	return found;
 }
 
-Mat sampleModuleGrid(Mat warped, int version, int moduleSize) {
-	int N = 4 * version + 17;
+Mat sampleModuleGrid(Mat warped, int version, int moduleSize_vechi) {
+	Mat grayWarped;
+	if (warped.channels() == 3) cvtColor(warped, grayWarped, COLOR_BGR2GRAY);
+	else grayWarped = warped.clone();
+
+	int N = 21;
+	float modSize = 16.0f;
+	float padding = (warped.cols - (N * modSize)) / 2.0f; // Ne centram dupa paddingul de mai sus
 	Mat grid(N, N, CV_8UC1);
 
-	for (int i = 0; i < N; i++)
+	for (int i = 0; i < N; i++) {
 		for (int j = 0; j < N; j++) {
-			int cy = i * moduleSize + moduleSize / 2;
-			int cx = j * moduleSize + moduleSize / 2;
-			uchar val = warped.at<uchar>(min(cy, warped.rows - 1), min(cx, warped.cols - 1));
-			grid.at<uchar>(i, j) = (val == 0) ? 1 : 0;
+			int cy = round(padding + i * modSize + modSize / 2.0f);
+			int cx = round(padding + j * modSize + modSize / 2.0f);
+
+			int blackCount = 0, whiteCount = 0;
+			int safeRadius = 3; // Careu extrem de sigur (7x7 pixeli) fix in inima modulului
+
+			for (int dy = -safeRadius; dy <= safeRadius; dy++) {
+				for (int dx = -safeRadius; dx <= safeRadius; dx++) {
+					int y = min(max(cy + dy, 0), grayWarped.rows - 1);
+					int x = min(max(cx + dx, 0), grayWarped.cols - 1);
+
+					if (grayWarped.at<uchar>(y, x) < 128) blackCount++;
+					else whiteCount++;
+				}
+			}
+			grid.at<uchar>(i, j) = (blackCount > whiteCount) ? 1 : 0;
 		}
+	}
 
 	int cellViz = 10;
 	Mat vizGrid(N * cellViz, N * cellViz, CV_8UC3, Scalar(200, 200, 200));
@@ -1713,62 +1133,140 @@ Mat sampleModuleGrid(Mat warped, int version, int moduleSize) {
 			rectangle(vizGrid, Point(j * cellViz, i * cellViz),
 				Point((j + 1) * cellViz - 1, (i + 1) * cellViz - 1), color, FILLED);
 		}
-	imshow("Grila Module QR", vizGrid);
-	printf("Grila %dx%d construita.\n", N, N);
 
+	imshow("Grila Module QR (Aliniament Perfect)", vizGrid);
 	return grid;
 }
 
-int main() 
+int main()
 {
 	cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_FATAL);
-    projectPath = _wgetcwd(0, 0);
+	projectPath = _wgetcwd(0, 0);
 
 	system("cls");
 	destroyAllWindows();
-	printf("Selecteaza imaginea:\n");
+
+	printf("==================================================\n");
+	printf("       PROIECT: DECODARE COD QR (PAS CU PAS)\n");
+	printf("==================================================\n\n");
+
+	printf("-> Selecteaza imaginea din fereastra...\n");
 
 	Mat ogImg = openImage();
 	int maxDim = 600;
 
+	// Redimensionare preventiva pentru vizualizare ok
 	if (ogImg.cols > maxDim || ogImg.rows > maxDim) {
 		double factor = (double)maxDim / max(ogImg.cols, ogImg.rows);
 		Mat resizedImg;
-
 		resize(ogImg, resizedImg, Size(), factor, factor, INTER_LINEAR);
-
 		ogImg = resizedImg;
 	}
-	printf("Imaginea a fost incarcata! Apasa o tasta...\n");
+	printf("=> Imaginea a fost incarcata! Apasa o tasta pe fereastra pentru a incepe...\n");
 	waitKey();
 
+
+	// --- PASUL 1: GRAYSCALE ---
+	printf("\n[Pasul 1] Conversie la Grayscale...\n");
 	Mat greyImg = image2Gray(ogImg);
-	printf("Step 1: Conversie la grayscale realizata! Apasa o tasta...\n");
 	waitKey();
 
-	printf("Step 2: Binarizare realizata! Apasa o tasta...\n");
+
+	// --- PASUL 2: BINARIZARE ---
+	printf("\n[Pasul 2] Binarizare (Calcul automat al pragului)...\n");
 	Mat binImg = binarizare(greyImg);
 	waitKey();
 
 
-	printf("Step 3: Detectare colturi realizata! Apasa o tasta...\n");
+	// --- PASUL 3: ELIMINARE ZGOMOT ---
+	printf("\n[Pasul 3] Eliminare zgomot (Filtru Median / Salt & Pepper)...\n");
+	Mat cleanImg = clearSaltAndPepper(binImg);
+	waitKey();
+
+
+	// --- PASUL 4: DETECTARE MARKERI (FINDER PATTERNS) ---
+	printf("\n[Pasul 4] Detectare centre si colturi pentru Finder Patterns...\n");
 	std::vector<Point2f> corners;
-	Mat cornerImg = detectFinderPatternsAndColor(binImg, corners);
+	Mat cornerImg = detectFinderPatternsAndColor(cleanImg, corners);
 	waitKey();
 
+
+	// --- PASUL 5: CORECTIE PERSPECTIVA ---
+	printf("\n[Pasul 5] Corectie Perspectiva (Filtru Morfologic + Homografie)...\n");
 	int version = 1;
-	Mat warped = applyAffineCorrection(binImg, corners, version);
+	Mat warped = applyAffineCorrection(cleanImg, corners, version);
 	waitKey();
 
-	int moduleSize = 400 / (4 * version + 17);
 
-	std::vector<Point> alignPts = detectAlignmentPatterns(warped, version, moduleSize);
-	waitKey();
-
+	// --- PASUL 6: EXTRAGERE GRILA ---
+	printf("\n[Pasul 6] Extragerea grilei logice (Matrice de biti)...\n");
+	int moduleSize = 16; // Setat conform noilor dimensiuni din applyAffineCorrection
 	Mat moduleGrid = sampleModuleGrid(warped, version, moduleSize);
 	waitKey();
-		
 
-	
+
+	// --- PASUL 7: RECONSTRUCTIE QR SI DECODARE ---
+	printf("\n[Pasul 7] Generare QR Sintetic si Citire Date...\n");
+
+	int N = moduleGrid.rows;
+	Mat syntheticQR(N, N, CV_8UC1);
+
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N; j++) {
+			// 1 devine negru (0), 0 devine alb (255)
+			syntheticQR.at<uchar>(i, j) = (moduleGrid.at<uchar>(i, j) == 1) ? 0 : 255;
+		}
+	}
+
+	Mat scaledQR, perfectQR;
+	resize(syntheticQR, scaledQR, Size(), 10.0, 10.0, INTER_NEAREST);
+	copyMakeBorder(scaledQR, perfectQR, 40, 40, 40, 40, BORDER_CONSTANT, Scalar(255));
+
+	imshow("QR Sintetic Generat", perfectQR);
+	waitKey();
+
+	// Incercam decodarea initiala pe grila extrasa
+	cv::QRCodeDetector qrDecoder;
+	std::string decodedText = qrDecoder.detectAndDecode(perfectQR);
+
+	if (!decodedText.empty()) {
+		printf("\n==================================================\n");
+		printf(" SUCCES! Matricea sintetica a fost decodata.\n");
+		printf(" Link gasit: %s\n", decodedText.c_str());
+		printf("==================================================\n\n");
+	}
+	else {
+		printf(" => Eroare de aliniament matematic pe matricea sintetica.\n");
+		printf(" => Aplicam Fallback: Decodare din imaginea pre-procesata de algoritm...\n");
+
+		// Daca geometria generata manual rateaza biti, folosim imaginea Binarizata si Curatata de tine
+		decodedText = qrDecoder.detectAndDecode(cleanImg);
+
+		if (!decodedText.empty()) {
+			printf("\n==================================================\n");
+			printf(" SUCCES (Fallback)! Imaginea curatata de zgomot a fost decodata perfect.\n");
+			printf(" Link gasit: %s\n", decodedText.c_str());
+			printf("==================================================\n\n");
+		}
+		else {
+			printf("\n[EROARE SUPREMA] Niciuna din metode nu a putut citi codul. Este prea distorsionat.\n");
+		}
+	}
+
+	// Deschidem browser-ul daca s-a gasit ceva
+	if (!decodedText.empty()) {
+		printf("Deschid browser-ul...\n");
+
+		std::string finalUrl = decodedText;
+		if (finalUrl.find("http://") != 0 && finalUrl.find("https://") != 0) {
+			finalUrl = "https://" + finalUrl;
+		}
+
+		std::string command = "start \"\" \"" + finalUrl + "\"";
+		system(command.c_str());
+	}
+
+	printf("\nProiect finalizat! Apasa o tasta pentru a inchide...\n");
+	waitKey(0);
 	return 0;
 }
