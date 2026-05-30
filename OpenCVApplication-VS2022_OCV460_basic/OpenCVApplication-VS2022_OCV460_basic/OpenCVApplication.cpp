@@ -1269,7 +1269,7 @@ int main()
 
 	printf("\n[Pasul 2a] Gaussian Blur (5x5) dupa Grayscale...\n");
 
-	Mat blurredImg =
+	Mat blurredImg = greyImg;
 		applyGaussianBlur(greyImg);
 
 	waitKey();
@@ -1340,7 +1340,7 @@ int main()
 		"\n[Pasul 5b] Eroziune pentru subtiere margini false...\n"
 	);
 
-	Mat erodedImg =
+	Mat erodedImg = 
 		eroziuneDetectie(cleanImg);
 
 	// ======================================================
