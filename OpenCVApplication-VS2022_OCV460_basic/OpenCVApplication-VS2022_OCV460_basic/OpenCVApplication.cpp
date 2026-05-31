@@ -305,61 +305,6 @@ Mat chooseBestBinary(Mat iterativ, Mat otsu, Mat adaptiv, Mat srcGray)
 	}
 }
 
-// Pas 4: Gaussian Blur 3x3 dupa binarizare + re-binarizare la prag fix
-Mat applyPostBinBlur(Mat src)
-{
-	float k[3][3] = {
-		{1, 2, 1},
-		{2, 4, 2},
-		{1, 2, 1}
-	};
-	float kSum = 16.0f;
-
-	int height = src.rows;
-	int width = src.cols;
-	Mat temp = src.clone();
-	Mat dst = Mat(height, width, CV_8UC1);
-
-	for (int i = 1; i < height - 1; i++)
-		for (int j = 1; j < width - 1; j++)
-		{
-			float sum = 0.0f;
-			for (int u = 0; u < 3; u++)
-				for (int v = 0; v < 3; v++)
-					sum += k[u][v] * src.at<uchar>(i + u - 1, j + v - 1);
-			temp.at<uchar>(i, j) = saturate_cast<uchar>(sum / kSum);
-		}
-
-	for (int i = 0; i < height; i++)
-		for (int j = 0; j < width; j++)
-			dst.at<uchar>(i, j) = (temp.at<uchar>(i, j) < 128) ? 0 : 255;
-
-	imshow("Gaussian Blur (post-binarizare)", dst);
-	return dst;
-}
-
-// Pas 5: Eliminare zgomot Salt and Pepper
-Mat clearSaltAndPepper(Mat src)
-{
-	int height = src.rows;
-	int width = src.cols;
-	Mat dst_median = Mat(height, width, CV_8UC1, Scalar(0));
-	uchar vals[9];
-
-	for (int i = 0; i < height - 2; i++)
-		for (int j = 0; j < width - 2; j++)
-		{
-			int k = 0;
-			for (int p = i; p < i + 3; p++)
-				for (int q = j; q < j + 3; q++)
-					vals[k++] = src.at<uchar>(p, q);
-			std::sort(vals, vals + 9);
-			dst_median.at<uchar>(i + 1, j + 1) = vals[4];
-		}
-
-	imshow("Salt and Pepper curatare", dst_median);
-	return dst_median;
-}
 
 Mat createStructuringElement()
 {
@@ -419,7 +364,7 @@ Mat eroziuneDetectie(Mat src)
 	return dst;
 }
 
-// Pas 6: Detectare Finder Patterns
+// Pas 4: Detectare Finder Patterns
 Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f>& outCorners)
 {
 	int height = binImg.rows;
@@ -583,7 +528,7 @@ std::vector<Point2f> getMarkerInnerCorners(Mat binImg, Point2f center)
 	return { Point2f(left, top), Point2f(right, top), Point2f(left, bottom), Point2f(right, bottom) };
 }
 
-// Pas 7: Corectie perspectiva prin transformare afina
+// Pas 5: Corectie perspectiva prin transformare afina 
 Mat applyAffineCorrection(Mat binImg, std::vector<Point2f> corners, int& outVersion)
 {
 	if (corners.size() < 3)
@@ -648,7 +593,7 @@ Mat applyAffineCorrection(Mat binImg, std::vector<Point2f> corners, int& outVers
 	return finalWarped;
 }
 
-// Pas 8: Extragere grila de module
+// Pas 6: Extragere grila de module
 Mat sampleModuleGrid(Mat warped, int version, int moduleSize_vechi)
 {
 	Mat grayWarped;
@@ -810,8 +755,7 @@ void runWebcamMode()
 		Mat binAdaptiv = binarizareAdaptiva(equalizedBlur);
 		Mat binImg = chooseBestBinary(binIterativ, binOtsu, binAdaptiv, equalizedBlur);
 
-		Mat postBinBlurred = applyPostBinBlur(binImg);
-		Mat cleanImg = postBinBlurred;
+		Mat cleanImg = binImg;
 		Mat erodedImg = eroziuneDetectie(cleanImg);
 
 		std::vector<Point2f> corners;
@@ -940,25 +884,22 @@ int main()
 	imshow("Binarizare aleasa", binImg);
 	waitKey();
 
-	// Pas 4: Blur post-binarizare
-	printf("\n[Pas 4] Gaussian Blur 3x3 dupa binarizare\n");
-	Mat postBinBlurred = applyPostBinBlur(binImg);
-	waitKey();
 
-	Mat cleanImg = postBinBlurred;
 
-	// Pas 5: Eroziune
-	printf("\n[Pas 5] Eroziune\n");
+	Mat cleanImg = binImg;
+
+	// Pas 4: Eroziune
+	printf("\n[Pas 4] Eroziune\n");
 	Mat erodedImg = eroziuneDetectie(cleanImg);
 
-	// Pas 6: Finder Patterns
-	printf("\n[Pas 6] Detectare Finder Patterns\n");
+	// Pas 5: Finder Patterns
+	printf("\n[Pas 5] Detectare Finder Patterns\n");
 	std::vector<Point2f> corners;
 	Mat cornerImg = detectFinderPatternsAndColor(erodedImg, corners);
 	waitKey();
 
-	// Pas 7: Corectie perspectiva
-	printf("\n[Pas 7] Corectie Perspectiva\n");
+	// Pas 6: Corectie perspectiva
+	printf("\n[Pas 6] Corectie Perspectiva\n");
 	if (corners.size() < 3)
 	{
 		printf("\n[EROARE] Detectia a gasit doar %zu finder patterns. Sunt necesare 3.\n", corners.size());
@@ -970,14 +911,14 @@ int main()
 	Mat warped = applyAffineCorrection(erodedImg, corners, version);
 	waitKey();
 
-	// Pas 8: Grila logica
-	printf("\n[Pas 8] Extragerea grilei logice\n");
+	// Pas 7: Grila logica
+	printf("\n[Pas 7] Extragerea grilei logice\n");
 	int moduleSize = 16;
 	Mat moduleGrid = sampleModuleGrid(warped, version, moduleSize);
 	waitKey();
 
-	// Pas 9: QR sintetic si decodare
-	printf("\n[Pas 9] Generare QR Sintetic si decodare\n");
+	// Pas 8: QR sintetic si decodare
+	printf("\n[Pas 8] Generare QR Sintetic si decodare\n");
 	int N = moduleGrid.rows;
 	Mat syntheticQR(N, N, CV_8UC1);
 
