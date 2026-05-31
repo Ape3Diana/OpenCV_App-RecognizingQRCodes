@@ -1,5 +1,4 @@
-﻿// OpenCVApplication.cpp : Defines the entry point for the console application.
-
+﻿
 #include "stdafx.h"
 #include "common.h"
 #include <opencv2/core/utils/logger.hpp>
@@ -15,9 +14,6 @@ int isInside(Mat img, int i, int j)
 	return 0;
 }
 
-// ---------------------------------------------------------------
-// openImage: Deschide imaginea din dialog
-// ---------------------------------------------------------------
 Mat openImage()
 {
 	char fname[MAX_PATH];
@@ -30,12 +26,7 @@ Mat openImage()
 	}
 }
 
-
-
-
-// ---------------------------------------------------------------
-// PASUL 1: Conversie la Grayscale
-// ---------------------------------------------------------------
+// Pas 1: Grayscale
 Mat image2Gray(Mat src)
 {
 	int height = src.rows;
@@ -50,14 +41,11 @@ Mat image2Gray(Mat src)
 			dst.at<uchar>(i, j) = (uchar)(0.299 * r + 0.587 * g + 0.114 * b);
 		}
 
-	imshow("Imagine grayscale", dst);
+	imshow("Grayscale", dst);
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// PASUL 2a - NOU: Gaussian Blur dupa grayscale (nucleu 5x5)
-//   Reduce zgomotul inainte de procesarea pragului.
-// ---------------------------------------------------------------
+// Pas 2a: Gaussian Blur 5x5 inainte de binarizare
 Mat applyGaussianBlur(Mat src)
 {
 	float k[5][5] = {
@@ -84,15 +72,11 @@ Mat applyGaussianBlur(Mat src)
 			dst.at<uchar>(i, j) = saturate_cast<uchar>(sum / kSum);
 		}
 
-	imshow("Dupa Gaussian Blur (pre-binarizare)", dst);
+	imshow("Gaussian Blur (pre-binarizare)", dst);
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// PASUL 2b - NOU: Egalizare histograma in spatiul HSV (canal V)
-//   BGR -> HSV -> egalizare V -> BGR -> Grayscale
-//   Imbunatateste contrastul fara a distorsiona culoarea.
-// ---------------------------------------------------------------
+// Pas 2b: Egalizare histograma pe grayscale
 Mat equalizeHist(Mat src)
 {
 	int height = src.rows;
@@ -101,34 +85,22 @@ Mat equalizeHist(Mat src)
 
 	Mat dst(height, width, CV_8UC1);
 
-	// ----------------------------
-	// 1. HISTOGRAMĂ
-	// ----------------------------
 	int hist[256] = { 0 };
-
 	for (int i = 0; i < height; i++)
 		for (int j = 0; j < width; j++)
 			hist[src.at<uchar>(i, j)]++;
 
-	// ----------------------------
-	// 2. PDF + CDF
-	// ----------------------------
 	float pdf[256] = { 0 };
 	float cdf[256] = { 0 };
-
 	float sum = 0.0f;
 
 	for (int i = 0; i < 256; i++)
 	{
 		pdf[i] = (float)hist[i] / M;
 		sum += pdf[i];
-
-		cdf[i] = sum;   // CDF standard (fără pow!)
+		cdf[i] = sum;
 	}
 
-	// ----------------------------
-	// 3. CDF MIN (important!)
-	// ----------------------------
 	float cdf_min = 0.0f;
 	for (int i = 0; i < 256; i++)
 	{
@@ -139,11 +111,7 @@ Mat equalizeHist(Mat src)
 		}
 	}
 
-	// ----------------------------
-	// 4. LUT (mapare intensități)
-	// ----------------------------
 	uchar lut[256];
-
 	for (int i = 0; i < 256; i++)
 	{
 		if (cdf[i] <= cdf_min)
@@ -154,19 +122,15 @@ Mat equalizeHist(Mat src)
 			);
 	}
 
-	// ----------------------------
-	// 5. APLICARE LUT
-	// ----------------------------
 	for (int i = 0; i < height; i++)
 		for (int j = 0; j < width; j++)
 			dst.at<uchar>(i, j) = lut[src.at<uchar>(i, j)];
 
-	imshow("Egalizare Gray Manual", dst);
+	imshow("Egalizare Histograma", dst);
 	return dst;
 }
-// ---------------------------------------------------------------
-// PASUL 3a: Binarizare iterativa cu prag optim (PASTRATA)
-// ---------------------------------------------------------------
+
+// Pas 3a: Binarizare iterativa
 Mat binarizare(Mat src)
 {
 	int height = src.rows;
@@ -208,7 +172,7 @@ Mat binarizare(Mat src)
 			{
 				uchar val = src.at<uchar>(i, j);
 				if (val <= T) { sum1 += val; count1++; }
-				else          { sum2 += val; count2++; }
+				else { sum2 += val; count2++; }
 			}
 		int V1 = count1 > 0 ? (int)(sum1 / count1) : 0;
 		int V2 = count2 > 0 ? (int)(sum2 / count2) : 0;
@@ -225,10 +189,7 @@ Mat binarizare(Mat src)
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// PASUL 3b - NOU: Binarizare Otsu
-//   Maximizeaza varianta inter-clase pentru a gasi pragul optim.
-// ---------------------------------------------------------------
+// Pas 3b: Binarizare Otsu
 Mat binarizareOtsu(Mat src)
 {
 	int height = src.rows;
@@ -270,27 +231,17 @@ Mat binarizareOtsu(Mat src)
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// PASUL 3c - NOU: Binarizare Adaptiva (pentru lumina neuniforma)
-//   Calculeaza un prag local per fereastra blockSize x blockSize
-//   folosind imaginea integrala pentru eficienta O(1) per pixel.
-//   prag_local = medie_locala - C
-// ---------------------------------------------------------------
+// Pas 3c: Binarizare adaptiva pentru iluminare neuniforma
 Mat binarizareAdaptiva(Mat src)
 {
 	int height = src.rows;
-	int width  = src.cols;
+	int width = src.cols;
 	Mat dst = Mat(height, width, CV_8UC1, Scalar(255));
 
-	// blockSize: fereastra locala (impar). 51 = ~8% din 600px
-	// Mareste daca gradientul de iluminare e foarte lin
 	int blockSize = 51;
 	int halfB = blockSize / 2;
-
-	// C: offset sub medie. Creste C => mai putin negru (mai curat)
 	int C = 10;
 
-	// Imagine integrala pentru suma O(1) per fereastra
 	Mat integralImg;
 	integral(src, integralImg, CV_64F);
 
@@ -304,9 +255,9 @@ Mat binarizareAdaptiva(Mat src)
 			int c2 = min(width - 1, j + halfB);
 
 			double suma = integralImg.at<double>(r2 + 1, c2 + 1)
-						- integralImg.at<double>(r1,     c2 + 1)
-						- integralImg.at<double>(r2 + 1, c1    )
-						+ integralImg.at<double>(r1,     c1    );
+				- integralImg.at<double>(r1, c2 + 1)
+				- integralImg.at<double>(r2 + 1, c1)
+				+ integralImg.at<double>(r1, c1);
 
 			int nrPixeli = (r2 - r1 + 1) * (c2 - c1 + 1);
 			double medie = suma / nrPixeli;
@@ -316,70 +267,45 @@ Mat binarizareAdaptiva(Mat src)
 		}
 	}
 
-	imshow("Binarizare Adaptiva (lumina neuniforma)", dst);
+	imshow("Binarizare Adaptiva", dst);
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// PASUL 3d: Alegem metoda de binarizare dupa tipul imaginii
-//
-//   Impartim imaginea in 9 blocuri (3x3) si calculam media
-//   de intensitate a fiecaruia. Daca diferenta dintre blocul
-//   cel mai luminos si cel mai intunecat depaseste DIFF_THRESH,
-//   inseamna iluminare neuniforma (foto cu lumina naturala)
-//   -> folosim ADAPTIVA.
-//   Altfel (scanata, descarcata, dreapta) -> folosim ITERATIVA.
-// ---------------------------------------------------------------
+// Pas 3d: Alegere metoda de binarizare in functie de iluminare
 Mat chooseBestBinary(Mat iterativ, Mat otsu, Mat adaptiv, Mat srcGray)
 {
-	int height = srcGray.rows;
-	int width  = srcGray.cols;
-	int bh = height / 3;
-	int bw = width  / 3;
-	double minMedie = 255.0, maxMedie = 0.0;
+	int M = srcGray.rows * srcGray.cols;
 
-	for (int bi = 0; bi < 3; bi++)
-	{
-		for (int bj = 0; bj < 3; bj++)
+	long long sumAll = 0;
+	for (int i = 0; i < srcGray.rows; i++)
+		for (int j = 0; j < srcGray.cols; j++)
+			sumAll += srcGray.at<uchar>(i, j);
+	double miu = (double)sumAll / M;
+
+	double sumVar = 0;
+	for (int i = 0; i < srcGray.rows; i++)
+		for (int j = 0; j < srcGray.cols; j++)
 		{
-			long long suma = 0;
-			int count = 0;
-			for (int i = bi * bh; i < (bi + 1) * bh; i++)
-				for (int j = bj * bw; j < (bj + 1) * bw; j++)
-				{
-					suma += srcGray.at<uchar>(i, j);
-					count++;
-				}
-			double medie = (double)suma / count;
-			if (medie < minMedie) minMedie = medie;
-			if (medie > maxMedie) maxMedie = medie;
+			double d = srcGray.at<uchar>(i, j) - miu;
+			sumVar += d * d;
 		}
-	}
+	double sigma = sqrt(sumVar / M);
 
-	double diff = maxMedie - minMedie;
-	printf("  [Detectie] Diferenta iluminare intre blocuri = %.1f\n", diff);
+	printf("  [Detectie] Sigma globala = %.2f\n", sigma);
 
-	// Peste 40 => iluminare neuniforma (fotografie) => ADAPTIVA
-	// Sub 40  => imagine curata/scanata             => ITERATIVA
-	double DIFF_THRESH = 40.0;
-
-	if (diff > DIFF_THRESH)
+	if (sigma > 80.0)
 	{
-		printf("  [Alegere] Iluminare NEUNIFORMA -> Binarizare ADAPTIVA\n");
-		return adaptiv;
+		printf("  [Alegere] Sigma mare -> Binarizare Iterativa\n");
+		return iterativ;
 	}
 	else
 	{
-		printf("  [Alegere] Iluminare UNIFORMA -> Binarizare ITERATIVA\n");
-		return iterativ;
+		printf("  [Alegere] Sigma mica -> Binarizare Adaptiva\n");
+		return adaptiv;
 	}
 }
 
-// ---------------------------------------------------------------
-// PASUL 4 - NOU: Gaussian Blur dupa binarizare (nucleu 3x3)
-//   Netezeste marginile zimtate ale modulelor QR,
-//   urmat de re-binarizare la prag fix 128.
-// ---------------------------------------------------------------
+// Pas 4: Gaussian Blur 3x3 dupa binarizare + re-binarizare la prag fix
 Mat applyPostBinBlur(Mat src)
 {
 	float k[3][3] = {
@@ -408,13 +334,11 @@ Mat applyPostBinBlur(Mat src)
 		for (int j = 0; j < width; j++)
 			dst.at<uchar>(i, j) = (temp.at<uchar>(i, j) < 128) ? 0 : 255;
 
-	imshow("Dupa Gaussian Blur (post-binarizare)", dst);
+	imshow("Gaussian Blur (post-binarizare)", dst);
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// PASUL 5: Eliminare zgomot Salt & Pepper (NESCHIMBATA)
-// ---------------------------------------------------------------
+// Pas 5: Eliminare zgomot Salt and Pepper
 Mat clearSaltAndPepper(Mat src)
 {
 	int height = src.rows;
@@ -433,13 +357,10 @@ Mat clearSaltAndPepper(Mat src)
 			dst_median.at<uchar>(i + 1, j + 1) = vals[4];
 		}
 
-	imshow("CleanedSaltAndPepper", dst_median);
+	imshow("Salt and Pepper curatare", dst_median);
 	return dst_median;
 }
 
-// ---------------------------------------------------------------
-// Element structural pentru dilatare (NESCHIMBAT)
-// ---------------------------------------------------------------
 Mat createStructuringElement()
 {
 	Mat element = Mat(3, 3, CV_8UC1, Scalar(255));
@@ -476,20 +397,15 @@ Mat dilatare(Mat src)
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// Eroziune pentru detectie - subtiem marginile groase false
-// Folosim element structural 3x3 complet (patrат)
-// ---------------------------------------------------------------
 Mat eroziuneDetectie(Mat src)
 {
 	int height = src.rows;
-	int width  = src.cols;
+	int width = src.cols;
 	Mat dst = Mat(height, width, CV_8UC1, Scalar(255));
 
 	for (int i = 1; i < height - 1; i++)
 		for (int j = 1; j < width - 1; j++)
 		{
-			// Pixel negru in dst doar daca TOTI vecinii 3x3 sunt negri
 			bool allBlack = true;
 			for (int u = -1; u <= 1 && allBlack; u++)
 				for (int v = -1; v <= 1 && allBlack; v++)
@@ -499,13 +415,11 @@ Mat eroziuneDetectie(Mat src)
 				dst.at<uchar>(i, j) = 0;
 		}
 
-	imshow("Dupa Eroziune (pre-detectie)", dst);
+	imshow("Eroziune (pre-detectie)", dst);
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// Detectare Finder Patterns (NESCHIMBATA)
-// ---------------------------------------------------------------
+// Pas 6: Detectare Finder Patterns
 Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f>& outCorners)
 {
 	int height = binImg.rows;
@@ -575,7 +489,9 @@ Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f>& outCorners)
 									int py = correctedCenterY + dy;
 									int px = centerX + dx;
 									if (isInside(binImg, py, px) && binImg.at<uchar>(py, px) == 0)
-									{ sumX += px; sumY += py; count++; }
+									{
+										sumX += px; sumY += py; count++;
+									}
 								}
 
 							if (count > 0)
@@ -648,14 +564,11 @@ Mat detectFinderPatternsAndColor(Mat binImg, std::vector<Point2f>& outCorners)
 	}
 	else printf("Eroare detectie.\n");
 
-	imshow("DST: Puncte de Control Filtrate", dst);
+	imshow("Puncte de Control Filtrate", dst);
 	for (const auto& c : candidates) outCorners.push_back(c.pos);
 	return dst;
 }
 
-// ---------------------------------------------------------------
-// getMarkerInnerCorners (NESCHIMBATA)
-// ---------------------------------------------------------------
 std::vector<Point2f> getMarkerInnerCorners(Mat binImg, Point2f center)
 {
 	int cx = round(center.x);
@@ -670,12 +583,9 @@ std::vector<Point2f> getMarkerInnerCorners(Mat binImg, Point2f center)
 	return { Point2f(left, top), Point2f(right, top), Point2f(left, bottom), Point2f(right, bottom) };
 }
 
-// ---------------------------------------------------------------
-// applyAffineCorrection (NESCHIMBATA)
-// ---------------------------------------------------------------
+// Pas 7: Corectie perspectiva prin transformare afina
 Mat applyAffineCorrection(Mat binImg, std::vector<Point2f> corners, int& outVersion)
 {
-	// Guard: daca nu avem exact 3 colturi, nu putem face corectia
 	if (corners.size() < 3)
 	{
 		printf("  [EROARE] applyAffineCorrection: doar %zu colturi detectate, sunt necesare 3.\n", corners.size());
@@ -725,7 +635,7 @@ Mat applyAffineCorrection(Mat binImg, std::vector<Point2f> corners, int& outVers
 		dstH.push_back(Point2f(padding + (startCol + 5) * modSize, padding + (startRow + 2) * modSize));
 		dstH.push_back(Point2f(padding + (startCol + 2) * modSize, padding + (startRow + 5) * modSize));
 		dstH.push_back(Point2f(padding + (startCol + 5) * modSize, padding + (startRow + 5) * modSize));
-	};
+		};
 	addEyeDst(0, 0);
 	addEyeDst(N_qr - 7, 0);
 	addEyeDst(0, N_qr - 7);
@@ -734,13 +644,11 @@ Mat applyAffineCorrection(Mat binImg, std::vector<Point2f> corners, int& outVers
 	Mat finalWarped;
 	warpPerspective(affineWarped, finalWarped, H, Size(warpSize, warpSize), INTER_NEAREST, BORDER_CONSTANT, Scalar(255));
 
-	imshow("Warped QR (Matematica Suprema)", finalWarped);
+	imshow("QR corectat perspectiva", finalWarped);
 	return finalWarped;
 }
 
-// ---------------------------------------------------------------
-// sampleModuleGrid (NESCHIMBATA)
-// ---------------------------------------------------------------
+// Pas 8: Extragere grila de module
 Mat sampleModuleGrid(Mat warped, int version, int moduleSize_vechi)
 {
 	Mat grayWarped;
@@ -780,24 +688,14 @@ Mat sampleModuleGrid(Mat warped, int version, int moduleSize_vechi)
 				Point((j + 1) * cellViz - 1, (i + 1) * cellViz - 1), color, FILLED);
 		}
 
-	imshow("Grila Module QR (Aliniament Perfect)", vizGrid);
+	imshow("Grila module QR", vizGrid);
 	return grid;
 }
 
-
-
-//////////////////////////////////////////////////////////////////////////
-
-
-// ---------------------------------------------------------------
-//   Afiseaza rezultatul si deschide browser-ul.
-// ---------------------------------------------------------------
 void processResult(const std::string& decodedText)
 {
-	printf("\n==================================================\n");
-	printf(" SUCCES! QR decodat de camera web.\n");
+	printf(" SUCCES! QR decodat.\n");
 	printf(" Link/Text: %s\n", decodedText.c_str());
-	printf("==================================================\n\n");
 
 	std::string url = decodedText;
 	if (url.find("http://") == 0 || url.find("https://") == 0)
@@ -807,19 +705,11 @@ void processResult(const std::string& decodedText)
 	}
 }
 
-// ---------------------------------------------------------------
-//   Captureaza frame-uri live, aplica algoritmul complet
-//   si cand detecteaza un QR valid afiseaza rezultatul.
-
-
 void runWebcamMode()
 {
-	printf("\n==================================================\n");
-	printf("    MOD CAMERA WEB - Detectare QR Live\n");
-	printf("==================================================\n");
-	printf("  Tine codul QR in fata camerei.\n");
-	printf("  Captura se face DOAR cand QR-ul este stabil.\n");
-	printf("  Apasa ESC pentru a iesi.\n\n");
+	printf("\nMod camera web activ.\n");
+	printf("Tine codul QR in fata camerei.\n");
+	printf("Apasa ESC pentru a iesi.\n\n");
 
 	VideoCapture cap(0);
 
@@ -835,56 +725,31 @@ void runWebcamMode()
 	cv::QRCodeDetector qrDetector;
 
 	Mat frame;
-
-	// -------------------------------------------------
-	// STABILITATE DETECTIE
-	// -------------------------------------------------
 	int stableFrames = 0;
 	const int REQUIRED_STABLE_FRAMES = 8;
-
 	std::string lastDecoded = "";
 
 	while (true)
 	{
 		cap >> frame;
-
-		if (frame.empty())
-			break;
+		if (frame.empty()) break;
 
 		Mat preview = frame.clone();
-
-		// -------------------------------------------------
-		// Detectie + Decodare rapida
-		// -------------------------------------------------
 		std::vector<Point> qrPoints;
-
-		std::string quickDecode =
-			qrDetector.detectAndDecode(frame, qrPoints);
-
+		std::string quickDecode = qrDetector.detectAndDecode(frame, qrPoints);
 		bool found = !quickDecode.empty();
 
-		// -------------------------------------------------
-		// Filtru: ignora detectii foarte mici
-		// -------------------------------------------------
 		if (found && qrPoints.size() >= 4)
 		{
 			double area = contourArea(qrPoints);
-
 			if (area < 5000)
-			{
 				found = false;
-			}
 		}
 
-		// -------------------------------------------------
-		// Stabilitate pe frame-uri consecutive
-		// -------------------------------------------------
 		if (found)
 		{
 			if (quickDecode == lastDecoded)
-			{
 				stableFrames++;
-			}
 			else
 			{
 				stableFrames = 1;
@@ -897,171 +762,61 @@ void runWebcamMode()
 			lastDecoded = "";
 		}
 
-		// -------------------------------------------------
-		// Desen contur QR
-		// -------------------------------------------------
 		if (found && qrPoints.size() == 4)
 		{
 			for (int i = 0; i < 4; i++)
-			{
-				line(preview,
-					qrPoints[i],
-					qrPoints[(i + 1) % 4],
-					Scalar(0, 255, 0),
-					3);
-			}
+				line(preview, qrPoints[i], qrPoints[(i + 1) % 4], Scalar(0, 255, 0), 3);
 
-			putText(preview,
-				"QR VALID DETECTAT",
-				Point(10, 40),
-				FONT_HERSHEY_SIMPLEX,
-				0.8,
-				Scalar(0, 255, 0),
-				2);
+			putText(preview, "QR VALID DETECTAT", Point(10, 40), FONT_HERSHEY_SIMPLEX, 0.8, Scalar(0, 255, 0), 2);
 
 			char buffer[100];
-			sprintf(buffer,
-				"Stabilitate: %d / %d",
-				stableFrames,
-				REQUIRED_STABLE_FRAMES);
-
-			putText(preview,
-				buffer,
-				Point(10, 75),
-				FONT_HERSHEY_SIMPLEX,
-				0.7,
-				Scalar(0, 255, 255),
-				2);
+			sprintf(buffer, "Stabilitate: %d / %d", stableFrames, REQUIRED_STABLE_FRAMES);
+			putText(preview, buffer, Point(10, 75), FONT_HERSHEY_SIMPLEX, 0.7, Scalar(0, 255, 255), 2);
 		}
 		else
 		{
-			putText(preview,
-				"Cauta cod QR...",
-				Point(10, 40),
-				FONT_HERSHEY_SIMPLEX,
-				0.8,
-				Scalar(0, 100, 255),
-				2);
+			putText(preview, "Cauta cod QR...", Point(10, 40), FONT_HERSHEY_SIMPLEX, 0.8, Scalar(0, 100, 255), 2);
 		}
 
-		putText(preview,
-			"ESC = Iesire",
-			Point(10, 110),
-			FONT_HERSHEY_SIMPLEX,
-			0.6,
-			Scalar(255, 255, 255),
-			1);
-
+		putText(preview, "ESC = Iesire", Point(10, 110), FONT_HERSHEY_SIMPLEX, 0.6, Scalar(255, 255, 255), 1);
 		imshow("Camera Web - Preview Live", preview);
 
-		// ESC
-		if (waitKey(30) == 27)
-			break;
+		if (waitKey(30) == 27) break;
+		if (stableFrames < REQUIRED_STABLE_FRAMES) continue;
 
-		// -------------------------------------------------
-		// Nu captura pana nu e stabil
-		// -------------------------------------------------
-		if (stableFrames < REQUIRED_STABLE_FRAMES)
-			continue;
-
-		// -------------------------------------------------
-		// CAPTURA FINALA
-		// -------------------------------------------------
 		printf("\nQR stabil detectat!\n");
 		printf("Text detectat: %s\n", quickDecode.c_str());
 
 		Mat captured = frame.clone();
-
-		// cooldown mic
 		Sleep(500);
-
-		// inchidem preview-ul live
 		destroyWindow("Camera Web - Preview Live");
 
-		// -------------------------------------------------
-		// Resize imagine
-		// -------------------------------------------------
 		int maxDim = 600;
-
-		if (captured.cols > maxDim ||
-			captured.rows > maxDim)
+		if (captured.cols > maxDim || captured.rows > maxDim)
 		{
-			double factor =
-				(double)maxDim /
-				max(captured.cols, captured.rows);
-
-			resize(captured,
-				captured,
-				Size(),
-				factor,
-				factor,
-				INTER_LINEAR);
+			double factor = (double)maxDim / max(captured.cols, captured.rows);
+			resize(captured, captured, Size(), factor, factor, INTER_LINEAR);
 		}
 
 		imshow("Frame Capturat", captured);
-
 		printf("\nAplic pipeline-ul complet...\n");
 
-		// -------------------------------------------------
-		// PASUL 1
-		// -------------------------------------------------
 		Mat greyImg = image2Gray(captured);
-
-		// -------------------------------------------------
-		// PASUL 2
-		// -------------------------------------------------
 		Mat equalizedImg = equalizeHist(greyImg);
+		Mat equalizedBlur = applyGaussianBlur(equalizedImg);
 
-		Mat equalizedBlur =
-			applyGaussianBlur(equalizedImg);
+		Mat binIterativ = binarizare(equalizedBlur);
+		Mat binOtsu = binarizareOtsu(equalizedBlur);
+		Mat binAdaptiv = binarizareAdaptiva(equalizedBlur);
+		Mat binImg = chooseBestBinary(binIterativ, binOtsu, binAdaptiv, equalizedBlur);
 
-		// -------------------------------------------------
-		// PASUL 3
-		// -------------------------------------------------
-		Mat binIterativ =
-			binarizare(equalizedBlur);
-
-		Mat binOtsu =
-			binarizareOtsu(equalizedBlur);
-
-		Mat binAdaptiv =
-			binarizareAdaptiva(equalizedBlur);
-
-		Mat binImg =
-			chooseBestBinary(
-				binIterativ,
-				binOtsu,
-				binAdaptiv,
-				equalizedBlur);
-
-		// -------------------------------------------------
-		// PASUL 4
-		// -------------------------------------------------
-		Mat postBinBlurred =
-			applyPostBinBlur(binImg);
-
+		Mat postBinBlurred = applyPostBinBlur(binImg);
 		Mat cleanImg = postBinBlurred;
+		Mat erodedImg = eroziuneDetectie(cleanImg);
 
-		// -------------------------------------------------
-		// PASUL 5
-		// -------------------------------------------------
-		Mat erodedImg =
-			eroziuneDetectie(cleanImg);
-
-		// -------------------------------------------------
-		// PASUL 6
-		// -------------------------------------------------
 		std::vector<Point2f> corners;
+		Mat cornerImg = detectFinderPatternsAndColor(erodedImg, corners);
 
-		Mat cornerImg =
-			detectFinderPatternsAndColor(
-				erodedImg,
-				corners);
-
-		// -------------------------------------------------
-		// Daca detectia custom esueaza,
-		// folosim direct decoderul OpenCV
-		// -------------------------------------------------
 		if (corners.size() < 3)
 		{
 			printf("\nFinder patterns insuficiente.\n");
@@ -1069,138 +824,61 @@ void runWebcamMode()
 			return;
 		}
 
-		// -------------------------------------------------
-		// PASUL 7
-		// -------------------------------------------------
 		int version = 1;
+		Mat warped = applyAffineCorrection(erodedImg, corners, version);
+		Mat moduleGrid = sampleModuleGrid(warped, version, 16);
 
-		Mat warped =
-			applyAffineCorrection(
-				erodedImg,
-				corners,
-				version);
-
-		// -------------------------------------------------
-		// PASUL 8
-		// -------------------------------------------------
-		Mat moduleGrid =
-			sampleModuleGrid(
-				warped,
-				version,
-				16);
-
-		// -------------------------------------------------
-		// PASUL 9
-		// -------------------------------------------------
 		int Nq = moduleGrid.rows;
-
 		Mat syntheticQR(Nq, Nq, CV_8UC1);
-
 		for (int i = 0; i < Nq; i++)
 			for (int j = 0; j < Nq; j++)
-				syntheticQR.at<uchar>(i, j) =
-				(moduleGrid.at<uchar>(i, j) == 1)
-				? 0 : 255;
+				syntheticQR.at<uchar>(i, j) = (moduleGrid.at<uchar>(i, j) == 1) ? 0 : 255;
 
 		Mat scaledQR, perfectQR;
-
-		resize(syntheticQR,
-			scaledQR,
-			Size(),
-			10.0,
-			10.0,
-			INTER_NEAREST);
-
-		copyMakeBorder(
-			scaledQR,
-			perfectQR,
-			40, 40, 40, 40,
-			BORDER_CONSTANT,
-			Scalar(255));
-
+		resize(syntheticQR, scaledQR, Size(), 10.0, 10.0, INTER_NEAREST);
+		copyMakeBorder(scaledQR, perfectQR, 40, 40, 40, 40, BORDER_CONSTANT, Scalar(255));
 		imshow("QR Sintetic Generat", perfectQR);
 
-		// -------------------------------------------------
-		// DECODARE FINALA
-		// -------------------------------------------------
 		cv::QRCodeDetector qrDecoder;
-
-		std::string decodedText =
-			qrDecoder.detectAndDecode(perfectQR);
-
-		if (decodedText.empty())
-			decodedText =
-			qrDecoder.detectAndDecode(cleanImg);
-
-		if (decodedText.empty())
-			decodedText = quickDecode;
+		std::string decodedText = qrDecoder.detectAndDecode(perfectQR);
+		if (decodedText.empty()) decodedText = qrDecoder.detectAndDecode(cleanImg);
+		if (decodedText.empty()) decodedText = quickDecode;
 
 		if (!decodedText.empty())
-		{
 			processResult(decodedText);
-		}
 		else
-		{
 			printf("\n[EROARE] Nu s-a putut decoda.\n");
-		}
 
 		printf("\nApasa o tasta pentru a inchide...\n");
-
 		waitKey(0);
-
 		return;
 	}
 
 	cap.release();
-
 	destroyAllWindows();
-
 	printf("\nCamera inchisa.\n");
 }
 
-
-
-
-
-
-
-
-
-
-
-
-// ---------------------------------------------------------------
-// MAIN - Pipeline complet cu toate modificarile integrate
-// ---------------------------------------------------------------
 int main()
 {
-	cv::utils::logging::setLogLevel(
-		cv::utils::logging::LOG_LEVEL_FATAL
-	);
+	cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_FATAL);
 
 	projectPath = _wgetcwd(0, 0);
 
 	system("cls");
 	destroyAllWindows();
 
-	printf("==================================================\n");
-	printf(" PROIECT: DECODARE COD QR\n");
-	printf("==================================================\n\n");
-
+	printf("PROIECT: DECODARE COD QR\n\n");
 	printf("Selecteaza modul de operare:\n");
-	printf(" [1] Imagine din fisier (modul original)\n");
-	printf(" [2] Camera web (live)\n");
-	printf("\nAlege (1 sau 2): ");
+	printf(" [1] Imagine din fisier\n");
+	printf(" [2] Camera web \n");
 
 	int choice = 0;
-
 	while (choice != 1 && choice != 2)
 	{
 		char c;
 		std::cin >> c;
-
 		choice = c - '0';
-
 		if (choice != 1 && choice != 2)
 			printf("\nAlege 1 sau 2: ");
 	}
@@ -1209,14 +887,11 @@ int main()
 
 	if (choice == 2)
 	{
-		// ---- MOD CAMERA WEB ----
 		runWebcamMode();
 		return 0;
 	}
 
-	// ---- MOD ORIGINAL: imagine din fisier ----
-
-	printf("-> Selecteaza imaginea din fereastra...\n");
+	printf("Selecteaza imaginea din fereastra...\n");
 
 	Mat ogImg = openImage();
 
@@ -1228,309 +903,119 @@ int main()
 	}
 
 	int maxDim = 600;
-
 	if (ogImg.cols > maxDim || ogImg.rows > maxDim)
 	{
-		double factor =
-			(double)maxDim /
-			max(ogImg.cols, ogImg.rows);
-
+		double factor = (double)maxDim / max(ogImg.cols, ogImg.rows);
 		Mat resized;
-
-		resize(
-			ogImg,
-			resized,
-			Size(),
-			factor,
-			factor,
-			INTER_LINEAR
-		);
-
+		resize(ogImg, resized, Size(), factor, factor, INTER_LINEAR);
 		ogImg = resized;
 	}
 
-	printf("=> Imaginea incarcata! Apasa o tasta pentru a continua...\n");
-
+	printf("Imaginea incarcata! Apasa o tasta pentru a continua...\n");
 	waitKey();
 
-	// ======================================================
-	// PASUL 1 - GRAYSCALE
-	// ======================================================
-
-	printf("\n[Pasul 1] Conversie la Grayscale...\n");
-
+	// Pas 1: Grayscale
+	printf("\n[Pas 1] Conversie la Grayscale\n");
 	Mat greyImg = image2Gray(ogImg);
-
 	waitKey();
 
-	// ======================================================
-	// PASUL 2a - GAUSSIAN BLUR
-	// ======================================================
-
-	printf("\n[Pasul 2a] Gaussian Blur (5x5) dupa Grayscale...\n");
-
+	// Pas 2a: Gaussian Blur
+	printf("\n[Pas 2a] Gaussian Blur 5x5\n");
 	Mat blurredImg = greyImg;
-		applyGaussianBlur(greyImg);
-
+	applyGaussianBlur(greyImg);
 	waitKey();
 
-	// ======================================================
-	// PASUL 2b - EGALIZARE HSV
-	// ======================================================
-
-	printf(
-		"\n[Pasul 2b] Egalizare Histograma in spatiul HSV (canal V)...\n"
-	);
-
-	Mat equalizedImg =
-		equalizeHist(greyImg);
-
-	Mat equalizedBlurred =
-		applyGaussianBlur(equalizedImg);
-
+	// Pas 2b: Egalizare histograma
+	printf("\n[Pas 2b] Egalizare Histograma\n");
+	Mat equalizedImg = equalizeHist(greyImg);
+	Mat equalizedBlurred = applyGaussianBlur(equalizedImg);
 	waitKey();
 
-	// ======================================================
-	// PASUL 3 - BINARIZARE
-	// ======================================================
-
-	printf("\n[Pasul 3] Binarizare tripla...\n");
-
-	Mat binIterativ =
-		binarizare(equalizedBlurred);
-
-	Mat binOtsu =
-		binarizareOtsu(equalizedBlurred);
-
-	Mat binAdaptiv =
-		binarizareAdaptiva(equalizedBlurred);
-
-	Mat binImg =
-		chooseBestBinary(
-			binIterativ,
-			binOtsu,
-			binAdaptiv,
-			ogImg
-		);
-
-	imshow("Binarizare ALEASA", binImg);
-
+	// Pas 3: Binarizare
+	printf("\n[Pas 3] Binarizare\n");
+	Mat binIterativ = binarizare(equalizedBlurred);
+	Mat binOtsu = binarizareOtsu(equalizedBlurred);
+	Mat binAdaptiv = binarizareAdaptiva(equalizedBlurred);
+	Mat binImg = chooseBestBinary(binIterativ, binOtsu, binAdaptiv, ogImg);
+	imshow("Binarizare aleasa", binImg);
 	waitKey();
 
-	// ======================================================
-	// PASUL 4 - POST BLUR
-	// ======================================================
-
-	printf(
-		"\n[Pasul 4] Gaussian Blur (3x3) dupa Binarizare + re-binarizare...\n"
-	);
-
-	Mat postBinBlurred =
-		applyPostBinBlur(binImg);
-
+	// Pas 4: Blur post-binarizare
+	printf("\n[Pas 4] Gaussian Blur 3x3 dupa binarizare\n");
+	Mat postBinBlurred = applyPostBinBlur(binImg);
 	waitKey();
 
 	Mat cleanImg = postBinBlurred;
 
-	// ======================================================
-	// PASUL 5 - EROZIUNE
-	// ======================================================
+	// Pas 5: Eroziune
+	printf("\n[Pas 5] Eroziune\n");
+	Mat erodedImg = eroziuneDetectie(cleanImg);
 
-	printf(
-		"\n[Pasul 5b] Eroziune pentru subtiere margini false...\n"
-	);
-
-	Mat erodedImg = 
-		eroziuneDetectie(cleanImg);
-
-	// ======================================================
-	// PASUL 6 - FINDER PATTERNS
-	// ======================================================
-
-	printf("\n[Pasul 6] Detectare Finder Patterns...\n");
-
+	// Pas 6: Finder Patterns
+	printf("\n[Pas 6] Detectare Finder Patterns\n");
 	std::vector<Point2f> corners;
-
-	Mat cornerImg =
-		detectFinderPatternsAndColor(
-			erodedImg,
-			corners
-		);
-
+	Mat cornerImg = detectFinderPatternsAndColor(erodedImg, corners);
 	waitKey();
 
-	// ======================================================
-	// PASUL 7 - PERSPECTIVA
-	// ======================================================
-
-	printf("\n[Pasul 7] Corectie Perspectiva...\n");
-
+	// Pas 7: Corectie perspectiva
+	printf("\n[Pas 7] Corectie Perspectiva\n");
 	if (corners.size() < 3)
 	{
-		printf(
-			"\n[EROARE] Detectia a gasit doar %zu finder patterns. Sunt necesare 3.\n",
-			corners.size()
-		);
-
+		printf("\n[EROARE] Detectia a gasit doar %zu finder patterns. Sunt necesare 3.\n", corners.size());
 		waitKey(0);
 		return 0;
 	}
 
 	int version = 1;
-
-	Mat warped =
-		applyAffineCorrection(
-			erodedImg,
-			corners,
-			version
-		);
-
+	Mat warped = applyAffineCorrection(erodedImg, corners, version);
 	waitKey();
 
-	// ======================================================
-	// PASUL 8 - GRID LOGIC
-	// ======================================================
-
-	printf("\n[Pasul 8] Extragerea grilei logice...\n");
-
+	// Pas 8: Grila logica
+	printf("\n[Pas 8] Extragerea grilei logice\n");
 	int moduleSize = 16;
-
-	Mat moduleGrid =
-		sampleModuleGrid(
-			warped,
-			version,
-			moduleSize
-		);
-
+	Mat moduleGrid = sampleModuleGrid(warped, version, moduleSize);
 	waitKey();
 
-	// ======================================================
-	// PASUL 9 - QR SINTETIC
-	// ======================================================
-
-	printf(
-		"\n[Pasul 9] Generare QR Sintetic si Citire Date...\n"
-	);
-
+	// Pas 9: QR sintetic si decodare
+	printf("\n[Pas 9] Generare QR Sintetic si decodare\n");
 	int N = moduleGrid.rows;
-
-	Mat syntheticQR(
-		N,
-		N,
-		CV_8UC1
-	);
+	Mat syntheticQR(N, N, CV_8UC1);
 
 	for (int i = 0; i < N; i++)
-	{
 		for (int j = 0; j < N; j++)
-		{
-			syntheticQR.at<uchar>(i, j) =
-				(moduleGrid.at<uchar>(i, j) == 1)
-				? 0
-				: 255;
-		}
-	}
+			syntheticQR.at<uchar>(i, j) = (moduleGrid.at<uchar>(i, j) == 1) ? 0 : 255;
 
-	Mat scaledQR;
-	Mat perfectQR;
-
-	resize(
-		syntheticQR,
-		scaledQR,
-		Size(),
-		10.0,
-		10.0,
-		INTER_NEAREST
-	);
-
-	copyMakeBorder(
-		scaledQR,
-		perfectQR,
-		40,
-		40,
-		40,
-		40,
-		BORDER_CONSTANT,
-		Scalar(255)
-	);
-
-	imshow(
-		"QR Sintetic Generat",
-		perfectQR
-	);
-
+	Mat scaledQR, perfectQR;
+	resize(syntheticQR, scaledQR, Size(), 10.0, 10.0, INTER_NEAREST);
+	copyMakeBorder(scaledQR, perfectQR, 40, 40, 40, 40, BORDER_CONSTANT, Scalar(255));
+	imshow("QR Sintetic Generat", perfectQR);
 	waitKey();
 
-	// ======================================================
-	// DECODARE QR
-	// ======================================================
-
 	cv::QRCodeDetector qrDecoder;
-
-	std::string decodedText =
-		qrDecoder.detectAndDecode(perfectQR);
+	std::string decodedText = qrDecoder.detectAndDecode(perfectQR);
 
 	if (!decodedText.empty())
 	{
-		printf(
-			"\n==================================================\n"
-		);
-
-		printf(
-			" SUCCES! Link gasit: %s\n",
-			decodedText.c_str()
-		);
-
-		printf(
-			"==================================================\n\n"
-		);
+		printf("\nSUCCES! Link gasit: %s\n", decodedText.c_str());
 	}
 	else
 	{
-		decodedText =
-			qrDecoder.detectAndDecode(cleanImg);
-
+		decodedText = qrDecoder.detectAndDecode(cleanImg);
 		if (!decodedText.empty())
-		{
-			printf(
-				"\n SUCCES (Fallback)! Link gasit: %s\n",
-				decodedText.c_str()
-			);
-		}
+			printf("\nSUCCES (fallback)! Link gasit: %s\n", decodedText.c_str());
 		else
-		{
-			printf(
-				"\n[EROARE] Nicio metoda nu a putut citi codul.\n"
-			);
-		}
+			printf("\n[EROARE] Nicio metoda nu a putut citi codul.\n");
 	}
-
-	// ======================================================
-	// DESCHIDERE LINK
-	// ======================================================
 
 	if (!decodedText.empty())
 	{
 		std::string url = decodedText;
-
-		if (
-			url.find("http://") != 0 &&
-			url.find("https://") != 0
-			)
-		{
+		if (url.find("http://") != 0 && url.find("https://") != 0)
 			url = "https://" + url;
-		}
-
-		system(
-			("start \"\" \"" + url + "\"").c_str()
-		);
+		system(("start \"\" \"" + url + "\"").c_str());
 	}
 
-	printf(
-		"\nProiect finalizat! Apasa o tasta pentru a inchide...\n"
-	);
-
+	printf("\nProiect finalizat! Apasa o tasta pentru a inchide...\n");
 	waitKey(0);
-
 	return 0;
 }
