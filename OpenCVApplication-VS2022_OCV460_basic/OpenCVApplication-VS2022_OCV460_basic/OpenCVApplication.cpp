@@ -293,7 +293,7 @@ Mat chooseBestBinary(Mat iterativ, Mat otsu, Mat adaptiv, Mat srcGray)
 
 	printf("  [Detectie] Sigma globala = %.2f\n", sigma);
 
-	if (sigma > 80.0)
+	if (sigma > 65.0)
 	{
 		printf("  [Alegere] Sigma mare -> Binarizare Iterativa\n");
 		return iterativ;
